@@ -1,0 +1,6 @@
+{
+  "name": "EduCore",
+  "description": "EduCore is a premium SaaS E-Learning platform with student, instructor, and admin control panels, featuring interactive tracking, course builder, live streaming manager, and automated revenues.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
