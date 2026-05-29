@@ -74,3 +74,81 @@ fun Map<String, Any?>.toCourseEntity(): CourseEntity = CourseEntity(
     isFeatured      = (this["isFeatured"]       as? Boolean) ?: false,
     featuredOrder   = ((this["featuredOrder"]   as? Long)?.toInt()) ?: 0
 )
+
+fun Map<String, Any?>.toLiveSessionEntity(): LiveSessionEntity = LiveSessionEntity(
+    id = ((this["firestoreId"] as? String)?.hashCode()) ?: 0,
+    instructorId = (this["instructorId"] as? String) ?: "",
+    instructorName = (this["instructorName"] as? String) ?: "",
+    topic = (this["topic"] as? String) ?: "",
+    description = (this["description"] as? String) ?: "",
+    scheduledAt = (this["scheduledAt"] as? String) ?: "",
+    duration = (this["duration"] as? String) ?: "",
+    maxParticipants = ((this["maxParticipants"] as? Long)?.toInt()) ?: 100,
+    status = (this["status"] as? String) ?: "Upcoming",
+    enrolledCount = ((this["enrolledCount"] as? Long)?.toInt()) ?: 0,
+    cancelReason = (this["cancelReason"] as? String) ?: "",
+    createdByAdmin = (this["createdByAdmin"] as? Boolean) ?: false
+)
+
+fun Map<String, Any?>.toPayoutEntity(): PayoutEntity = PayoutEntity(
+    id = ((this["firestoreId"] as? String)?.hashCode()) ?: 0,
+    instructorId = (this["instructorId"] as? String) ?: "",
+    amount = ((this["amount"] as? Long)?.toInt()) ?: 0,
+    status = (this["status"] as? String) ?: "Pending",
+    requestedAt = (this["requestedAt"] as? Long) ?: 0L,
+    processedAt = (this["processedAt"] as? Long) ?: 0L,
+    transactionId = (this["transactionId"] as? String) ?: ""
+)
+
+fun Map<String, Any?>.toEnrollmentEntity(): EnrollmentEntity = EnrollmentEntity(
+    id = ((this["firestoreId"] as? String)?.hashCode()) ?: 0,
+    userEmail = (this["userId"] as? String) ?: "",
+    courseId = ((this["courseId"] as? String)?.hashCode()) ?: 0,
+    progress = ((this["progress"] as? Long)?.toInt()) ?: 0,
+    completedLessonIds = ((this["completedLessonIds"] as? List<*>)?.joinToString(",")) ?: "",
+    notes = (this["notes"] as? String) ?: "",
+    wishlist = (this["wishlist"] as? Boolean) ?: false,
+    isCompleted = (this["isCompleted"] as? Boolean) ?: false,
+    certificateGranted = (this["certificateGranted"] as? Boolean) ?: false,
+    enrolledAt = (this["enrolledAt"] as? Long) ?: System.currentTimeMillis()
+)
+
+fun Map<String, Any?>.toNotificationEntity(): NotificationEntity = NotificationEntity(
+    id = ((this["firestoreId"] as? String)?.hashCode()) ?: 0,
+    userEmail = (this["userId"] as? String) ?: "",
+    message = (this["message"] as? String) ?: "",
+    type = (this["type"] as? String) ?: "Alert",
+    isRead = (this["isRead"] as? Boolean) ?: false,
+    createdAt = (this["createdAt"] as? Long) ?: System.currentTimeMillis()
+)
+
+fun Map<String, Any?>.toAdminLogEntity(): AdminLogEntity = AdminLogEntity(
+    id = ((this["firestoreId"] as? String)?.hashCode()) ?: 0,
+    adminEmail = (this["adminUid"] as? String) ?: "",
+    action = (this["action"] as? String) ?: "",
+    targetId = (this["targetId"] as? String) ?: "",
+    targetType = (this["targetType"] as? String) ?: "",
+    oldValue = (this["oldValue"] as? String) ?: "",
+    newValue = (this["newValue"] as? String) ?: "",
+    timestamp = (this["timestamp"] as? Long) ?: System.currentTimeMillis()
+)
+
+fun Map<String, Any?>.toBannerEntity(): BannerEntity = BannerEntity(
+    id = ((this["firestoreId"] as? String)?.hashCode()) ?: 0,
+    imageUrl = (this["imageUrl"] as? String) ?: "",
+    title = (this["title"] as? String) ?: "",
+    subtitle = (this["subtitle"] as? String) ?: "",
+    buttonLabel = (this["buttonLabel"] as? String) ?: "Explore",
+    isEnabled = (this["isEnabled"] as? Boolean) ?: true,
+    displayOrder = ((this["displayOrder"] as? Long)?.toInt()) ?: 0
+)
+
+fun Map<String, Any?>.toSentNotificationEntity(): SentNotificationEntity = SentNotificationEntity(
+    id = ((this["firestoreId"] as? String)?.hashCode()) ?: 0,
+    title = (this["title"] as? String) ?: "",
+    message = (this["message"] as? String) ?: "",
+    target = (this["target"] as? String) ?: "",
+    notificationType = (this["notificationType"] as? String) ?: "Push",
+    deliveryCount = ((this["deliveryCount"] as? Long)?.toInt()) ?: 0,
+    openRate = ((this["openRate"] as? Double)?.toFloat()) ?: 0f
+)

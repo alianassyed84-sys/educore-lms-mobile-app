@@ -43,29 +43,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var signupPrefilledName = mutableStateOf("")
     var signupPrefilledPassword = mutableStateOf("")
 
-    // Streams (Room-backed — Phase 3 will migrate to Firestore)
-    val allCoursesList: StateFlow<List<CourseEntity>> = courseDao.getAllCoursesFlow()
+    // Streams (Migrated to Firestore — Phase 3 Complete)
+    val allCoursesList: StateFlow<List<CourseEntity>> = FirebaseRepository.getAllCoursesFlow()
+        .map { list -> list.map { it.toCourseEntity() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val allSessionsList: StateFlow<List<LiveSessionEntity>> = liveSessionDao.getAllSessionsFlow()
+        
+    val allSessionsList: StateFlow<List<LiveSessionEntity>> = FirebaseRepository.getAllSessionsFlow()
+        .map { list -> list.map { it.toLiveSessionEntity() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val allPayoutsList: StateFlow<List<PayoutEntity>> = payoutDao.getAllPayoutsFlow()
+        
+    val allPayoutsList: StateFlow<List<PayoutEntity>> = FirebaseRepository.getAllPayoutsFlow()
+        .map { list -> list.map { it.toPayoutEntity() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val allUsersList: StateFlow<List<UserEntity>> = userDao.getAllUsersFlow()
+        
+    val allUsersList: StateFlow<List<UserEntity>> = FirebaseRepository.getAllUsersFlow()
+        .map { list -> list.map { it.toUserEntity(it["uid"] as? String ?: "") } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val allAdminLogsList: StateFlow<List<AdminLogEntity>> = adminLogDao.getAllAdminLogsFlow()
+        
+    val allAdminLogsList: StateFlow<List<AdminLogEntity>> = FirebaseRepository.getAllAdminLogsFlow()
+        .map { list -> list.map { it.toAdminLogEntity() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val allBannersList: StateFlow<List<BannerEntity>> = bannerDao.getAllBannersFlow()
+        
+    val allBannersList: StateFlow<List<BannerEntity>> = FirebaseRepository.getAllBannersFlow()
+        .map { list -> list.map { it.toBannerEntity() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val allSentNotifications: StateFlow<List<SentNotificationEntity>> = sentNotificationDao.getAllSentNotificationsFlow()
+        
+    val allSentNotifications: StateFlow<List<SentNotificationEntity>> = FirebaseRepository.getAllSentNotificationsFlow()
+        .map { list -> list.map { it.toSentNotificationEntity() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val userEnrollments = currentUser.flatMapLatest { user ->
-        if (user != null) enrollmentDao.getEnrollmentsForUserFlow(user.email)
+        if (user != null) FirebaseRepository.getEnrollmentsForUserFlow(user.email).map { list -> list.map { it.toEnrollmentEntity() } }
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val userNotifications = currentUser.flatMapLatest { user ->
-        if (user != null) notificationDao.getNotificationsForUserFlow(user.email)
+        if (user != null) FirebaseRepository.getNotificationsForUserFlow(user.email).map { list -> list.map { it.toNotificationEntity() } }
         else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -235,34 +248,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     suspend fun verifyOtp(enteredCode: String, onResult: (Boolean, String) -> Unit) {
-        if (enteredCode == generatedOtp.value) {
-            val user = userDao.getUserByEmail(verificationEmail.value)
-            if (user != null) {
-                if (otpPurpose.value == "signup") {
-                    val updated = user.copy(isVerified = true)
-                    userDao.insertUser(updated)
-                    if (updated.role == "Instructor" && !updated.isApproved) onResult(true, "INSTRUCTOR_PENDING")
-                    else { currentUser.value = updated; onResult(true, "SUCCESS") }
-                } else onResult(true, "RESET_PASSWORD_APPROVED")
-            } else onResult(false, "User not found.")
-        } else onResult(false, "Invalid OTP.")
+        if (otpPurpose.value == "signup") {
+            // With Firebase, we don't use manual OTPs, we check if they clicked the email link
+            val isVerified = FirebaseRepository.reloadAndCheckVerified()
+            if (isVerified) {
+                val fbUser = FirebaseRepository.currentFirebaseUser
+                if (fbUser != null) {
+                    FirebaseRepository.markUserVerifiedInFirestore(fbUser.uid)
+                    // Reload the current user value
+                    restoreFirebaseSession()
+                    onResult(true, "SUCCESS")
+                } else {
+                    onResult(false, "Session lost. Please log in again.")
+                }
+            } else {
+                onResult(false, "Email not verified yet. Please check your inbox and click the link.")
+            }
+        } else {
+            onResult(true, "RESET_PASSWORD_APPROVED")
+        }
     }
 
     suspend fun forgotPasswordRequest(emailInput: String, onResult: (Boolean, String) -> Unit) {
         val email = sanitizeInput(emailInput).trim().lowercase()
-        if (userDao.getUserByEmail(email) == null) { onResult(false, "Email not found."); return }
-        verificationEmail.value = email; generatedOtp.value = generate6DigitOtp(); otpPurpose.value = "forgot_password"
-        onResult(true, "SUCCESS")
+        val result = FirebaseRepository.sendPasswordResetEmail(email)
+        if (result.isSuccess) {
+            onResult(true, "Password reset email sent. Please check your inbox.")
+        } else {
+            onResult(false, "Failed to send reset email. Account may not exist.")
+        }
     }
 
     suspend fun resetPassword(newPasswordInput: String, onResult: (Boolean, String) -> Unit) {
-        val password = sanitizeInput(newPasswordInput)
-        if (password.length < 8) { onResult(false, "Password must be at least 8 characters."); return }
-        val user = userDao.getUserByEmail(verificationEmail.value)
-        if (user != null) {
-            val updated = user.copy(passwordHash = hashPassword(password), isVerified = true)
-            userDao.insertUser(updated); currentUser.value = updated; onResult(true, "SUCCESS")
-        } else onResult(false, "User not found.")
+        // With Firebase, password reset is handled via the link in the email.
+        // We just return success here as the UI might still call it.
+        onResult(true, "Please use the link sent to your email to reset your password.")
     }
 
     fun logout() { currentUser.value = null; impersonatedUser.value = null }
@@ -272,9 +292,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
             if (user.subscription == "Free" && userEnrollments.value.size >= 5) return@launch
-            if (enrollmentDao.getEnrollment(user.email, courseId) == null) {
-                enrollmentDao.insertEnrollment(EnrollmentEntity(userEmail = user.email, courseId = courseId))
-                courseDao.incrementEnrollmentCount(courseId)
+            val existing = userEnrollments.value.find { it.courseId == courseId }
+            if (existing == null) {
+                FirebaseRepository.enrollUserInCourse(user.email, courseId.toString())
             }
         }
     }
@@ -282,32 +302,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleWishlist(courseId: Int) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
-            val existing = enrollmentDao.getEnrollment(user.email, courseId)
-            if (existing != null) enrollmentDao.insertEnrollment(existing.copy(wishlist = !existing.wishlist))
-            else enrollmentDao.insertEnrollment(EnrollmentEntity(userEmail = user.email, courseId = courseId, wishlist = true))
+            val existing = userEnrollments.value.find { it.courseId == courseId }
+            if (existing != null) {
+                FirebaseRepository.updateEnrollment(user.email, courseId.toString(), mapOf("wishlist" to !existing.wishlist))
+            } else {
+                FirebaseRepository.enrollUserInCourse(user.email, courseId.toString())
+                FirebaseRepository.updateEnrollment(user.email, courseId.toString(), mapOf("wishlist" to true))
+            }
         }
     }
 
     fun saveLessonNotes(courseId: Int, notesText: String) {
         val user = currentUser.value ?: return
-        viewModelScope.launch { enrollmentDao.updateNotes(user.email, courseId, notesText) }
+        viewModelScope.launch {
+            FirebaseRepository.updateEnrollment(user.email, courseId.toString(), mapOf("notes" to notesText))
+        }
     }
 
     fun markLessonComplete(courseId: Int, lessonId: Int, onComplete: (Int) -> Unit) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
-            val enrollment = enrollmentDao.getEnrollment(user.email, courseId) ?: return@launch
+            val enrollment = userEnrollments.value.find { it.courseId == courseId } ?: return@launch
             val completedIds = enrollment.completedLessonIds.split(",").filter { it.isNotEmpty() }.toMutableList()
             if (!completedIds.contains(lessonId.toString())) {
                 completedIds.add(lessonId.toString())
                 val lessonsList = lessonDao.getLessonsForCourse(courseId)
                 val progress = if (lessonsList.isEmpty()) 100 else ((completedIds.size.toFloat() / lessonsList.size) * 100).toInt()
                 val isFinished = progress >= 100
-                enrollmentDao.updateEnrollment(enrollment.copy(completedLessonIds = completedIds.joinToString(","), progress = progress, isCompleted = isFinished))
-                val badges = user.badges.split(",").toMutableList()
+                FirebaseRepository.updateEnrollmentProgress(user.email, courseId.toString(), completedIds, progress, isFinished)
+                
+                val badges = user.badges.split(",").filter { it.isNotEmpty() }.toMutableList()
                 if (isFinished && !badges.contains("Course Finished")) badges.add("Course Finished")
-                val updated = user.copy(xp = user.xp + 50, badges = badges.joinToString(","))
-                userDao.insertUser(updated); currentUser.value = updated
+                
+                FirebaseRepository.updateUserProfile(user.email, mapOf(
+                    "xp" to user.xp + 50,
+                    "badges" to badges.joinToString(",")
+                ))
+                currentUser.value = user.copy(xp = user.xp + 50, badges = badges.joinToString(","))
                 onComplete(50)
             } else onComplete(0)
         }
@@ -322,9 +353,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
             val expiry = System.currentTimeMillis() + if (pricingPlanText.contains("Year")) 365L * 86400000 else 30L * 86400000
-            val updated = user.copy(subscription = "Pro", proExpiryAt = expiry)
-            userDao.insertUser(updated); currentUser.value = updated
-            notificationDao.insertNotification(NotificationEntity(userEmail = user.email, message = "You upgraded to EduCore Pro! Enjoy unlimited courses.", type = "Alert"))
+            FirebaseRepository.updateUserProfile(user.email, mapOf(
+                "subscription" to "Pro",
+                "proExpiryAt" to expiry
+            ))
+            // Current User state gets updated automatically by real-time flow, but we can fast-update:
+            currentUser.value = user.copy(subscription = "Pro", proExpiryAt = expiry)
+            FirebaseRepository.addNotification(user.email, "You upgraded to EduCore Pro! Enjoy unlimited courses.", "Alert")
         }
     }
 
@@ -332,16 +367,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun publishCourseByInstructor(title: String, details: String, category: String, difficulty: String, priceVal: Int, lessonsList: List<LessonEntity>) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
-            val cId = courseDao.insertCourse(CourseEntity(title = title, description = details, instructorId = user.email, instructorName = user.name, category = category, difficulty = difficulty, price = priceVal, status = "Pending")).toInt()
-            lessonDao.insertLessons(lessonsList.map { it.copy(courseId = cId) })
-            notificationDao.insertNotification(NotificationEntity(userEmail = user.email, message = "Course '$title' submitted for admin review.", type = "Course"))
+            val courseData = mapOf(
+                "title" to title,
+                "description" to details,
+                "instructorId" to user.email,
+                "instructorName" to user.name,
+                "category" to category,
+                "difficulty" to difficulty,
+                "price" to priceVal,
+                "status" to "Pending"
+            )
+            val mappedLessons = lessonsList.map { lesson ->
+                mapOf(
+                    "sectionName" to lesson.sectionName,
+                    "sectionOrder" to lesson.sectionOrder,
+                    "lessonOrder" to lesson.lessonOrder,
+                    "title" to lesson.title,
+                    "type" to lesson.type,
+                    "duration" to lesson.duration,
+                    "videoUrl" to lesson.videoUrl,
+                    "articleContent" to lesson.articleContent,
+                    "isPreview" to lesson.isPreview
+                )
+            }
+            FirebaseRepository.addCourseWithLessons(courseData, mappedLessons)
+            FirebaseRepository.addNotification(user.email, "Course '$title' submitted for admin review.", "Course")
         }
     }
 
     fun scheduleLiveStream(topic: String, description: String, dateStr: String, durationVal: String, capacity: Int) {
         val user = currentUser.value ?: return
         viewModelScope.launch {
-            liveSessionDao.insertSession(LiveSessionEntity(instructorId = user.email, instructorName = user.name, topic = topic, description = description, scheduledAt = dateStr, duration = durationVal, maxParticipants = capacity, status = "Upcoming"))
+            FirebaseRepository.addSession(mapOf(
+                "instructorId" to user.email,
+                "instructorName" to user.name,
+                "topic" to topic,
+                "description" to description,
+                "scheduledAt" to dateStr,
+                "duration" to durationVal,
+                "maxParticipants" to capacity,
+                "status" to "Upcoming",
+                "enrolledCount" to 0,
+                "createdByAdmin" to false
+            ))
         }
     }
 
@@ -350,7 +418,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val amt = amountStr.toIntOrNull() ?: 0
         if (amt < 1000) { onResult(false, "Minimum withdrawal is ₹1,000."); return }
         viewModelScope.launch {
-            payoutDao.insertPayout(PayoutEntity(instructorId = user.email, amount = amt, status = "Pending"))
+            FirebaseRepository.requestPayout(user.email, amt)
             onResult(true, "Payout of ₹$amt requested.")
         }
     }

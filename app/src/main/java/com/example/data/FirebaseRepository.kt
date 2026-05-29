@@ -37,6 +37,10 @@ object FirebaseRepository {
     private val payoutsCol get() = db.collection("payouts")
     private val notificationsCol get() = db.collection("notifications")
     private val adminLogsCol get() = db.collection("admin_logs")
+    private val bannersCol get() = db.collection("banners")
+    private val sentNotificationsCol get() = db.collection("sent_notifications")
+    private val platformSettingsCol get() = db.collection("platform_settings")
+    private val couponsCol get() = db.collection("coupons")
 
     // ════════════════════════════════════════════════════════════════════
     //  AUTH SECTION
@@ -165,6 +169,18 @@ object FirebaseRepository {
         usersCol.document(uid).set(fields, SetOptions.merge()).await()
     }
 
+    /**
+     * Observe all users as a real-time Flow.
+     */
+    fun getAllUsersFlow(): Flow<List<Map<String, Any?>>> = callbackFlow {
+        val listener = usersCol.addSnapshotListener { snap, err ->
+            if (err != null) { close(err); return@addSnapshotListener }
+            val list = snap?.documents?.mapNotNull { it.data?.plus("firestoreId" to it.id)?.plus("uid" to it.id) } ?: emptyList()
+            trySend(list)
+        }
+        awaitClose { listener.remove() }
+    }
+
     // ════════════════════════════════════════════════════════════════════
     //  COURSES SECTION
     // ════════════════════════════════════════════════════════════════════
@@ -201,6 +217,17 @@ object FirebaseRepository {
      */
     suspend fun addCourse(courseData: Map<String, Any?>): String {
         val ref = coursesCol.add(courseData).await()
+        return ref.id
+    }
+
+    /**
+     * Add a new course document along with its lessons as a subcollection.
+     */
+    suspend fun addCourseWithLessons(courseData: Map<String, Any?>, lessons: List<Map<String, Any?>>): String {
+        val ref = coursesCol.add(courseData).await()
+        for (lesson in lessons) {
+            ref.collection("lessons").add(lesson).await()
+        }
         return ref.id
     }
 
@@ -273,6 +300,14 @@ object FirebaseRepository {
                 "isCompleted"        to isCompleted
             )
         ).await()
+    }
+
+    /**
+     * Update arbitrary fields on a specific enrollment.
+     */
+    suspend fun updateEnrollment(userId: String, courseId: String, fields: Map<String, Any?>) {
+        val docId = "${userId}_${courseId}"
+        enrollmentsCol.document(docId).set(fields, SetOptions.merge()).await()
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -348,6 +383,43 @@ object FirebaseRepository {
         ).await()
     }
 
+    /**
+     * Observe all admin logs as a real-time Flow.
+     */
+    fun getAllAdminLogsFlow(): Flow<List<Map<String, Any?>>> = callbackFlow {
+        val listener = adminLogsCol.orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { close(err); return@addSnapshotListener }
+                val list = snap?.documents?.mapNotNull { it.data?.plus("firestoreId" to it.id) } ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  BANNERS & SENT NOTIFICATIONS SECTION
+    // ════════════════════════════════════════════════════════════════════
+
+    fun getAllBannersFlow(): Flow<List<Map<String, Any?>>> = callbackFlow {
+        val listener = bannersCol.orderBy("displayOrder")
+            .addSnapshotListener { snap, err ->
+                if (err != null) { close(err); return@addSnapshotListener }
+                val list = snap?.documents?.mapNotNull { it.data?.plus("firestoreId" to it.id) } ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    fun getAllSentNotificationsFlow(): Flow<List<Map<String, Any?>>> = callbackFlow {
+        val listener = sentNotificationsCol.orderBy("sentAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { close(err); return@addSnapshotListener }
+                val list = snap?.documents?.mapNotNull { it.data?.plus("firestoreId" to it.id) } ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
     // ════════════════════════════════════════════════════════════════════
     //  LIVE SESSIONS SECTION
     // ════════════════════════════════════════════════════════════════════
@@ -406,5 +478,18 @@ object FirebaseRepository {
             )
         ).await()
         return ref.id
+    }
+
+    /**
+     * Observe all payouts as a real-time Flow.
+     */
+    fun getAllPayoutsFlow(): Flow<List<Map<String, Any?>>> = callbackFlow {
+        val listener = payoutsCol.orderBy("requestedAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { close(err); return@addSnapshotListener }
+                val list = snap?.documents?.mapNotNull { it.data?.plus("firestoreId" to it.id) } ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
     }
 }
