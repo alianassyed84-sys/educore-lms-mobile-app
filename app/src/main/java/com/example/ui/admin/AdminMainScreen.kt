@@ -35,106 +35,102 @@ val adminSidebarItems = listOf(
     SidebarItem("audit",          "Audit Log",           Icons.Default.Security),
 )
 
+// ─── Bottom nav tabs for mobile ──────────────────────────────
+private data class AdminTab(val id: String, val label: String, val icon: ImageVector)
+private val adminBottomTabs = listOf(
+    AdminTab("overview",   "Overview",  Icons.Default.Dashboard),
+    AdminTab("users",      "Users",     Icons.Default.Group),
+    AdminTab("courses",    "Courses",   Icons.Default.MenuBook),
+    AdminTab("revenue",    "Revenue",   Icons.Default.AccountBalanceWallet),
+    AdminTab("more",       "More",      Icons.Default.MoreHoriz)
+)
+
+// ─── "More" drawer items ──────────────────────────────────────
+private val moreItems = listOf(
+    Triple("instructors",   "Instructors",    Icons.Default.School),
+    Triple("content",       "Content",        Icons.Default.Image),
+    Triple("sessions",      "Live Sessions",  Icons.Default.VideoCall),
+    Triple("notifications", "Notifications",  Icons.Default.Notifications),
+    Triple("analytics",     "Analytics",      Icons.Default.BarChart),
+    Triple("settings",      "Settings",       Icons.Default.Settings),
+    Triple("audit",         "Audit Log",      Icons.Default.Security),
+)
+
 @Composable
 fun AdminMainScreen(viewModel: MainViewModel, onLogout: () -> Unit) {
     val currentUserState by viewModel.currentUser.collectAsState()
     currentUserState ?: return
 
     var activeSection by remember { mutableStateOf("overview") }
-    var sidebarExpanded by remember { mutableStateOf(true) }
+    var showMoreDrawer by remember { mutableStateOf(false) }
     val impersonated by viewModel.impersonatedUser.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize().background(DarkBg)) {
-        // Impersonation Banner
-        if (impersonated != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth().background(AmberWarning).padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("👁 Viewing as: ${impersonated!!.name}", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                TextButton(onClick = { viewModel.adminStopImpersonation() }) {
-                    Text("Exit View", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        Row(modifier = Modifier.fillMaxSize()) {
-            // ── Sidebar ──────────────────────────────────────
-            val sidebarWidth by animateDpAsState(if (sidebarExpanded) 200.dp else 64.dp, label = "sidebar")
-            Column(
-                modifier = Modifier
-                    .width(sidebarWidth)
-                    .fillMaxHeight()
-                    .background(DarkCardBg)
-                    .border(BorderStroke(1.dp, CardBorderColor), RectangleShape)
-            ) {
-                // Header
+    Box(Modifier.fillMaxSize().background(DarkBg)) {
+        Column(Modifier.fillMaxSize()) {
+            // ── Impersonation Banner ─────────────────────────────
+            if (impersonated != null) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = if (sidebarExpanded) Arrangement.SpaceBetween else Arrangement.Center
-                ) {
-                    if (sidebarExpanded) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(IndigoPrimary),
-                                contentAlignment = Alignment.Center
-                            ) { Icon(Icons.Default.AdminPanelSettings, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
-                            Spacer(Modifier.width(8.dp))
-                            Text("EduCore", fontWeight = FontWeight.Bold, color = HeadingText, fontSize = 14.sp)
-                        }
-                    }
-                    IconButton(onClick = { sidebarExpanded = !sidebarExpanded }, modifier = Modifier.size(32.dp)) {
-                        Icon(if (sidebarExpanded) Icons.Default.ChevronLeft else Icons.Default.ChevronRight, null, tint = BodyText)
-                    }
-                }
-
-                Divider(color = CardBorderColor)
-                Spacer(Modifier.height(8.dp))
-
-                // Nav Items
-                adminSidebarItems.forEach { item ->
-                    val isActive = activeSection == item.id
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (isActive) IndigoPrimary else Color.Transparent)
-                            .clickable { activeSection = item.id }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(item.icon, null, tint = if (isActive) Color.White else BodyText, modifier = Modifier.size(20.dp))
-                        if (sidebarExpanded) {
-                            Spacer(Modifier.width(12.dp))
-                            Text(item.label, color = if (isActive) Color.White else BodyText, fontSize = 13.sp, fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal)
-                        }
-                    }
-                }
-
-                Spacer(Modifier.weight(1f))
-                Divider(color = CardBorderColor)
-
-                // Logout
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { onLogout() }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth().background(AmberWarning).padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.ExitToApp, null, tint = RedDanger, modifier = Modifier.size(20.dp))
-                    if (sidebarExpanded) { Spacer(Modifier.width(12.dp)); Text("Logout", color = RedDanger, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                    Text("👁 Viewing as: ${impersonated!!.name}", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    TextButton(onClick = { viewModel.adminStopImpersonation() }) {
+                        Text("Exit View", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
                 }
-                Spacer(Modifier.height(16.dp))
             }
 
-            // ── Main Content ─────────────────────────────────
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            // ── Premium Top Bar ──────────────────────────────────
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color(0xFF0D0D1F), DarkCardBg)))
+            ) {
+                Box(
+                    Modifier.fillMaxWidth().height(1.dp).align(Alignment.BottomStart)
+                        .background(Brush.horizontalGradient(listOf(Color.Transparent, RedDanger, AmberWarning, IndigoPrimary, Color.Transparent)))
+                )
+                Row(
+                    Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Admin shield avatar
+                        Box(
+                            Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                                .background(Brush.linearGradient(listOf(RedDanger.copy(0.8f), Color(0xFF7C3AED)))),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.AdminPanelSettings, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Admin Console", fontWeight = FontWeight.Bold, color = HeadingText, fontSize = 15.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(6.dp).clip(CircleShape).background(EmeraldSecondary))
+                                Spacer(Modifier.width(4.dp))
+                                Text("EduCore Platform", fontSize = 11.sp, color = BodyText)
+                            }
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val sectionLabel = adminSidebarItems.find { it.id == activeSection }?.label ?: activeSection
+                        Box(
+                            Modifier.clip(RoundedCornerShape(8.dp)).background(SurfaceElevated).border(1.dp, CardBorderColor, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(sectionLabel, fontSize = 11.sp, color = BodyText, fontWeight = FontWeight.Medium)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(onClick = onLogout, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.Logout, null, tint = RedDanger.copy(0.8f), modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+
+            // ── Main Content ─────────────────────────────────────
+            Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (activeSection) {
                     "overview"      -> AdminOverviewScreen(viewModel)
                     "courses"       -> AdminCourseControlScreen(viewModel)
@@ -149,6 +145,111 @@ fun AdminMainScreen(viewModel: MainViewModel, onLogout: () -> Unit) {
                     "audit"         -> AdminAuditLogScreen(viewModel)
                 }
             }
+
+            // ── Premium Bottom Nav ───────────────────────────────
+            Box(Modifier.fillMaxWidth().background(DarkCardBg).navigationBarsPadding()) {
+                Box(
+                    Modifier.fillMaxWidth().height(1.dp)
+                        .background(Brush.horizontalGradient(listOf(Color.Transparent, RedDanger, AmberWarning, IndigoPrimary, Color.Transparent)))
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    adminBottomTabs.forEach { tab ->
+                        val isMore = tab.id == "more"
+                        val selected = if (isMore) showMoreDrawer else (activeSection == tab.id && !showMoreDrawer)
+                        val accentColor = when (tab.id) {
+                            "overview" -> IndigoPrimary
+                            "users"    -> EmeraldSecondary
+                            "courses"  -> AmberWarning
+                            "revenue"  -> Color(0xFF10B981)
+                            else       -> BodyText
+                        }
+                        val scale by animateFloatAsState(if (selected) 1.1f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "scale")
+                        Column(
+                            Modifier.weight(1f).graphicsLayer(scaleX = scale, scaleY = scale)
+                                .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {
+                                    if (isMore) {
+                                        showMoreDrawer = !showMoreDrawer
+                                    } else {
+                                        activeSection = tab.id
+                                        showMoreDrawer = false
+                                    }
+                                },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                Modifier.size(if (selected) 42.dp else 36.dp).clip(RoundedCornerShape(12.dp))
+                                    .background(if (selected) accentColor.copy(0.2f) else Color.Transparent)
+                                    .then(if (selected) Modifier.border(1.dp, accentColor.copy(0.4f), RoundedCornerShape(12.dp)) else Modifier),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(tab.icon, null, tint = if (selected) accentColor else MutedText, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(Modifier.height(3.dp))
+                            Text(tab.label, fontSize = 9.sp, color = if (selected) accentColor else MutedText, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── "More" Bottom Sheet Drawer ───────────────────────────
+        AnimatedVisibility(
+            visible = showMoreDrawer,
+            enter = slideInVertically(initialOffsetY = { it }),
+            exit = slideOutVertically(targetOffsetY = { it }),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            Column(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                    .background(DarkCardBg)
+                    .border(1.dp, CardBorderColor, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                    .padding(20.dp)
+            ) {
+                // Handle bar
+                Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(MutedText).align(Alignment.CenterHorizontally))
+                Spacer(Modifier.height(16.dp))
+                Text("More Options", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HeadingText)
+                Spacer(Modifier.height(12.dp))
+                moreItems.chunked(3).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { (id, label, icon) ->
+                            val isActive = activeSection == id
+                            Column(
+                                Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+                                    .background(if (isActive) IndigoPrimary.copy(0.15f) else SurfaceElevated)
+                                    .border(1.dp, if (isActive) IndigoPrimary.copy(0.4f) else CardBorderColor, RoundedCornerShape(14.dp))
+                                    .clickable { activeSection = id; showMoreDrawer = false }
+                                    .padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(icon, null, tint = if (isActive) IndigoPrimary else BodyText, modifier = Modifier.size(22.dp))
+                                Spacer(Modifier.height(6.dp))
+                                Text(label, fontSize = 10.sp, color = if (isActive) IndigoPrimary else BodyText, fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                        }
+                        // Fill empty slots
+                        repeat(3 - row.size) { Box(Modifier.weight(1f)) }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                Spacer(Modifier.height(4.dp))
+                // Logout from drawer
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(RedDanger.copy(0.1f)).border(1.dp, RedDanger.copy(0.3f), RoundedCornerShape(14.dp))
+                        .clickable { onLogout() }.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Default.Logout, null, tint = RedDanger, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sign Out", color = RedDanger, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+            }
         }
     }
 }
@@ -157,19 +258,23 @@ fun AdminMainScreen(viewModel: MainViewModel, onLogout: () -> Unit) {
 
 @Composable
 fun KPICard(label: String, value: String, color: Color, icon: ImageVector, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier.border(1.dp, CardBorderColor, RoundedCornerShape(14.dp)),
-        colors = CardDefaults.cardColors(containerColor = DarkCardBg),
-        shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier.clip(RoundedCornerShape(16.dp)).background(DarkCardBg)
+            .border(1.dp, color.copy(0.2f), RoundedCornerShape(16.dp))
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(42.dp).clip(RoundedCornerShape(10.dp)).background(color.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text(label, color = BodyText, fontSize = 11.sp)
-                Text(value, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = color)
+        // Subtle top color accent
+        Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)).background(color))
+        Column(Modifier.padding(16.dp).padding(top = 3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(color.copy(0.15f)),
+                    contentAlignment = Alignment.Center
+                ) { Icon(icon, null, tint = color, modifier = Modifier.size(20.dp)) }
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(label, color = BodyText, fontSize = 11.sp)
+                    Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = color)
+                }
             }
         }
     }
@@ -177,7 +282,7 @@ fun KPICard(label: String, value: String, color: Color, icon: ImageVector, modif
 
 @Composable
 fun SectionHeader(title: String, subtitle: String = "") {
-    Column(modifier = Modifier.padding(bottom = 16.dp)) {
+    Column(Modifier.padding(bottom = 16.dp)) {
         Text(title, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = HeadingText)
         if (subtitle.isNotEmpty()) Text(subtitle, fontSize = 12.sp, color = BodyText)
     }
@@ -185,14 +290,14 @@ fun SectionHeader(title: String, subtitle: String = "") {
 
 @Composable
 fun StatusBadge(status: String) {
-    val color = when (status.lowercase()) {
-        "published", "approved", "paid", "active", "upcoming" -> EmeraldSecondary
-        "pending", "processing" -> AmberWarning
-        "rejected", "suspended", "banned", "cancelled" -> RedDanger
-        else -> MutedText
+    val (color, bg) = when (status.lowercase()) {
+        "published", "approved", "paid", "active", "upcoming" -> Pair(EmeraldSecondary, EmeraldSecondary.copy(0.15f))
+        "pending", "processing" -> Pair(AmberWarning, AmberWarning.copy(0.15f))
+        "rejected", "suspended", "banned", "cancelled" -> Pair(RedDanger, RedDanger.copy(0.15f))
+        else -> Pair(MutedText, MutedText.copy(0.15f))
     }
     Box(
-        modifier = Modifier.clip(RoundedCornerShape(50.dp)).background(color.copy(alpha = 0.15f)).padding(horizontal = 8.dp, vertical = 3.dp)
+        Modifier.clip(RoundedCornerShape(50.dp)).background(bg).border(1.dp, color.copy(0.3f), RoundedCornerShape(50.dp)).padding(horizontal = 10.dp, vertical = 4.dp)
     ) { Text(status, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
 }
 
@@ -225,20 +330,34 @@ fun AdminOverviewScreen(viewModel: MainViewModel) {
     val totalRevenue = payouts.filter { it.status == "Paid" }.sumOf { it.amount }
 
     androidx.compose.foundation.lazy.LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(20.dp),
+        Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item { Spacer(Modifier.height(4.dp)); SectionHeader("Command Center", "Platform-wide overview") }
+        item {
+            Spacer(Modifier.height(4.dp))
+            // Section heading
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Command Center", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = HeadingText)
+                    Text("Platform-wide overview", fontSize = 12.sp, color = BodyText)
+                }
+                Box(
+                    Modifier.clip(RoundedCornerShape(10.dp)).background(EmeraldSecondary.copy(0.15f)).border(1.dp, EmeraldSecondary.copy(0.3f), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text("Live", fontSize = 11.sp, color = EmeraldSecondary, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
 
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     KPICard("Total Users", "${users.size}", IndigoPrimary, Icons.Default.Group, Modifier.weight(1f))
-                    KPICard("Total Revenue", "₹${totalRevenue.formatNum()}", EmeraldSecondary, Icons.Default.CurrencyRupee, Modifier.weight(1f))
+                    KPICard("Revenue", "₹${totalRevenue.formatNum()}", EmeraldSecondary, Icons.Default.CurrencyRupee, Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    KPICard("Active Courses", "${courses.count { it.status == "Published" }}", AmberWarning, Icons.Default.Book, Modifier.weight(1f))
-                    KPICard("Pro Users", "${users.count { it.subscription == "Pro" }}", IndigoPrimary, Icons.Default.Star, Modifier.weight(1f))
+                    KPICard("Courses", "${courses.count { it.status == "Published" }}", AmberWarning, Icons.Default.Book, Modifier.weight(1f))
+                    KPICard("Pro Users", "${users.count { it.subscription == "Pro" }}", Color(0xFF8B5CF6), Icons.Default.Star, Modifier.weight(1f))
                 }
             }
         }
@@ -246,26 +365,36 @@ fun AdminOverviewScreen(viewModel: MainViewModel) {
         item {
             Text("Action Required", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HeadingText)
             Spacer(Modifier.height(8.dp))
-            if (pendingInstructors > 0) AlertRow("$pendingInstructors instructor(s) awaiting approval", AmberWarning)
-            if (pendingCourses > 0) AlertRow("$pendingCourses course(s) pending moderation", AmberWarning)
-            if (pendingPayouts > 0) AlertRow("$pendingPayouts payout request(s) pending", RedDanger)
-            if (pendingInstructors == 0 && pendingCourses == 0 && pendingPayouts == 0)
-                AlertRow("All clear — no pending actions", EmeraldSecondary)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (pendingInstructors > 0) AlertRow("$pendingInstructors instructor(s) awaiting approval", AmberWarning)
+                if (pendingCourses > 0) AlertRow("$pendingCourses course(s) pending moderation", AmberWarning)
+                if (pendingPayouts > 0) AlertRow("$pendingPayouts payout request(s) pending", RedDanger)
+                if (pendingInstructors == 0 && pendingCourses == 0 && pendingPayouts == 0)
+                    AlertRow("All clear — no pending actions ✓", EmeraldSecondary)
+            }
         }
 
         item {
             Text("Recent Admin Activity", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HeadingText)
-            Spacer(Modifier.height(8.dp))
-            logs.take(5).forEach { log ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(IndigoPrimary))
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(log.action.replace("_", " "), fontSize = 12.sp, color = HeadingText)
-                        Text(formatTimestamp(log.timestamp), fontSize = 10.sp, color = MutedText)
+            Spacer(Modifier.height(10.dp))
+            if (logs.isEmpty()) {
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(SurfaceElevated).padding(20.dp), contentAlignment = Alignment.Center) {
+                    Text("No recent activity", color = MutedText, fontSize = 13.sp)
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    logs.take(6).forEach { log ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(SurfaceElevated).border(1.dp, CardBorderColor, RoundedCornerShape(12.dp)).padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(IndigoPrimary))
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(log.action.replace("_", " "), fontSize = 12.sp, color = HeadingText)
+                                Text(formatTimestamp(log.timestamp), fontSize = 10.sp, color = MutedText)
+                            }
+                        }
                     }
                 }
             }
@@ -276,7 +405,7 @@ fun AdminOverviewScreen(viewModel: MainViewModel) {
 @Composable
 fun AlertRow(message: String, color: Color) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(10.dp)).background(color.copy(alpha = 0.1f)).padding(12.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(color.copy(0.1f)).border(1.dp, color.copy(0.3f), RoundedCornerShape(12.dp)).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(Icons.Default.Warning, null, tint = color, modifier = Modifier.size(16.dp))

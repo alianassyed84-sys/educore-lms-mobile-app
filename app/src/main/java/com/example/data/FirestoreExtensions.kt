@@ -37,6 +37,10 @@ fun Map<String, Any?>.toUserEntity(uid: String): UserEntity = UserEntity(
     totalEarnings   = ((this["totalEarnings"] as? Long)?.toInt()) ?: 0,
     suspensionReason = (this["suspensionReason"] as? String) ?: "",
     isFeatured      = (this["isFeatured"]     as? Boolean) ?: false,
+    experience      = (this["experience"]     as? String)  ?: "",
+    teachingHistory = (this["teachingHistory"] as? String)  ?: "",
+    cvUrl           = (this["cvUrl"]           as? String)  ?: "",
+    hasSubmittedOnboarding = (this["hasSubmittedOnboarding"] as? Boolean) ?: false,
     createdAt       = (this["createdAt"]      as? Long)    ?: System.currentTimeMillis(),
     lastActiveAt    = (this["lastActiveAt"]   as? Long)    ?: System.currentTimeMillis()
 )

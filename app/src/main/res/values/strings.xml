@@ -1,3 +1,5 @@
 <resources>
-    <string name="app_name">EduCore</string>
+    <string name="app_name">Learnora</string>
+    <!-- Replace with your actual Firebase/Google Cloud Console Web Client ID -->
+    <string name="default_web_client_id">139553133807-placeholder.apps.googleusercontent.com</string>
 </resources>

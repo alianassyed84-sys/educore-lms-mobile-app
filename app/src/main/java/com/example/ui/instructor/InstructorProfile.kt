@@ -5,6 +5,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.*
 import com.example.data.*
 import com.example.ui.MainViewModel
@@ -21,18 +23,46 @@ import com.example.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
+// ─── Local EduTextField for this file ───────────────────────
+@Composable
+private fun EduTextField(
+    placeholder: String,
+    value: String,
+    maxLines: Int = 1,
+    isNumber: Boolean = false,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(placeholder, fontSize = 12.sp) },
+        modifier = Modifier.fillMaxWidth(),
+        maxLines = maxLines,
+        keyboardOptions = if (isNumber) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = IndigoPrimary,
+            unfocusedBorderColor = CardBorderColor,
+            focusedTextColor = HeadingText,
+            unfocusedTextColor = HeadingText,
+            focusedLabelColor = IndigoPrimary,
+            unfocusedLabelColor = BodyText
+        ),
+        shape = RoundedCornerShape(10.dp)
+    )
+}
+
 @Composable
 fun InstructorProfileScreen(viewModel: MainViewModel, user: UserEntity, onLogout: () -> Unit) {
     var activeTab by remember { mutableStateOf("Payouts") }
-    
+
     Column(Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = listOf("Payouts", "Settings").indexOf(activeTab), containerColor = DarkCardBg, contentColor = IndigoPrimary) {
             Tab(selected = activeTab == "Payouts", onClick = { activeTab = "Payouts" }, text = { Text("Earnings & Payouts", fontSize = 13.sp) })
             Tab(selected = activeTab == "Settings", onClick = { activeTab = "Settings" }, text = { Text("Profile & Settings", fontSize = 13.sp) })
         }
-        
+
         when (activeTab) {
-            "Payouts" -> InstructorPayoutsTab(viewModel, user)
+            "Payouts"  -> InstructorPayoutsTab(viewModel, user)
             "Settings" -> InstructorSettingsTab(viewModel, user, onLogout)
         }
     }
@@ -43,12 +73,12 @@ fun InstructorPayoutsTab(viewModel: MainViewModel, user: UserEntity) {
     val context = LocalContext.current
     val payouts by viewModel.allPayoutsList.collectAsState()
     val myPayouts = remember(payouts) { payouts.filter { it.instructorId == user.email } }
-    
-    val totalPaid = myPayouts.filter { it.status == "Paid" }.sumOf { it.amount }
-    val pendingAmt = myPayouts.filter { it.status == "Pending" }.sumOf { it.amount }
-    val available = 45000 - totalPaid - pendingAmt // Mock total earnings
-    var requestAmt by remember { mutableStateOf("") }
-    
+
+    val totalPaid   = myPayouts.filter { it.status == "Paid" }.sumOf { it.amount }
+    val pendingAmt  = myPayouts.filter { it.status == "Pending" }.sumOf { it.amount }
+    val available   = 45000 - totalPaid - pendingAmt // Mock total earnings
+    var requestAmt  by remember { mutableStateOf("") }
+
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Card(Modifier.fillMaxWidth().border(1.dp, CardBorderColor, RoundedCornerShape(16.dp)), colors = CardDefaults.cardColors(containerColor = DarkCardBg)) {
@@ -63,34 +93,45 @@ fun InstructorPayoutsTab(viewModel: MainViewModel, user: UserEntity) {
                 }
             }
         }
-        
+
         item {
-            Text("Request Payout", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Request Payout", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HeadingText)
             Spacer(Modifier.height(8.dp))
             EduTextField("Amount to withdraw (Min ₹1000)", requestAmt, isNumber = true) { requestAmt = it }
             Spacer(Modifier.height(10.dp))
-            Button(onClick = { 
-                val amt = requestAmt.toIntOrNull() ?: 0
-                if (amt < 1000) { context.showToast("Minimum payout is ₹1000") }
-                else if (amt > available) { context.showToast("Insufficient balance") }
-                else { viewModel.payoutDao.insertPayout(PayoutEntity(instructorId = user.email, amount = amt, status = "Pending", requestedAt = System.currentTimeMillis())); requestAmt = ""; context.showToast("Payout requested!") }
-            }, Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = EmeraldSecondary)) { Text("Withdraw Funds") }
+            Button(
+                onClick = {
+                    val amt = requestAmt.toIntOrNull() ?: 0
+                    if (amt < 1000) {
+                        context.showToast("Minimum payout is ₹1000")
+                    } else if (amt > available) {
+                        context.showToast("Insufficient balance")
+                    } else {
+                        viewModel.requestInstructorWithdrawal(requestAmt) { success, msg ->
+                            context.showToast(msg)
+                            if (success) requestAmt = ""
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSecondary)
+            ) { Text("Withdraw Funds") }
         }
-        
+
         item {
-            Text("Transaction History", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Transaction History", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HeadingText)
             Spacer(Modifier.height(8.dp))
             if (myPayouts.isEmpty()) {
                 Text("No payout history yet.", color = MutedText, fontSize = 13.sp)
             }
         }
-        
+
         items(myPayouts.sortedByDescending { it.requestedAt }) { p ->
-            Row(Modifier.fillMaxWidth().padding(vertical=4.dp).clip(RoundedCornerShape(12.dp)).background(DarkCardBg).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(12.dp)).background(DarkCardBg).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(if(p.status=="Paid") Icons.Default.CheckCircle else Icons.Default.Pending, null, tint = if(p.status=="Paid") EmeraldSecondary else AmberWarning, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Payout Request", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Payout Request", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HeadingText)
                     Text(SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(p.requestedAt)), fontSize = 11.sp, color = BodyText)
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -105,13 +146,13 @@ fun InstructorPayoutsTab(viewModel: MainViewModel, user: UserEntity) {
 @Composable
 fun InstructorSettingsTab(viewModel: MainViewModel, user: UserEntity, onLogout: () -> Unit) {
     val context = LocalContext.current
-    var name by remember { mutableStateOf(user.name) }
+    var name  by remember { mutableStateOf(user.name) }
     var title by remember { mutableStateOf("Senior Developer") }
-    var bio by remember { mutableStateOf("I teach people how to code.") }
-    
+    var bio   by remember { mutableStateOf(user.bio.ifEmpty { "I teach people how to code." }) }
+
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
-            Text("Public Profile", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Public Profile", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HeadingText)
             Spacer(Modifier.height(8.dp))
             EduTextField("Full Name", name) { name = it }
             Spacer(Modifier.height(8.dp))
@@ -121,9 +162,9 @@ fun InstructorSettingsTab(viewModel: MainViewModel, user: UserEntity, onLogout: 
             Spacer(Modifier.height(10.dp))
             Button(onClick = { context.showToast("Profile updated!") }, Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)) { Text("Save Profile") }
         }
-        
+
         item {
-            Text("Security", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Security", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HeadingText)
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = { context.showToast("Password reset link sent") }, Modifier.fillMaxWidth(), border = BorderStroke(1.dp, CardBorderColor)) { Text("Change Password", color = HeadingText) }
             Spacer(Modifier.height(8.dp))

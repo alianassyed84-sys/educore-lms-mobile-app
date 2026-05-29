@@ -29,12 +29,6 @@ android {
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
-    }
   }
 
   buildTypes {
@@ -42,10 +36,11 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      signingConfig = signingConfigs.getByName("debug")
     }
     debug {
-      signingConfig = signingConfigs.getByName("debugConfig")
+      // Use Android's default debug signing (auto-generated, no file needed)
+      signingConfig = signingConfigs.getByName("debug")
     }
   }
   compileOptions {
@@ -74,6 +69,7 @@ dependencies {
   // ── Firebase ──────────────────────────────────────────────────────
   implementation(libs.firebase.auth)
   implementation(libs.firebase.firestore)
+  implementation(libs.play.services.auth)
   implementation(libs.kotlinx.coroutines.play.services) // await() on Firebase Tasks
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)

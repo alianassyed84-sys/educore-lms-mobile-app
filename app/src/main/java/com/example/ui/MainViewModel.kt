@@ -208,17 +208,78 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Guard: email must be verified
-        val emailVerified = FirebaseRepository.reloadAndCheckVerified()
-        if (!emailVerified) {
+        // We check Firestore's isVerified field (set true for seeded/admin accounts)
+        // as a fallback when Firebase Auth email verification is pending
+        val firestoreVerified = userEntity.isVerified
+        val firebaseVerified  = FirebaseRepository.reloadAndCheckVerified()
+        if (!firestoreVerified && !firebaseVerified) {
             verificationEmail.value = email
             onResult(true, "EMAIL_NOT_VERIFIED")
             return
         }
 
-        // Guard: instructors must be admin-approved
+        // Guard: instructors must be admin-approved - allow login but guide them to onboarding
         if (userEntity.role == "Instructor" && !userEntity.isApproved) {
+            currentUser.value = userEntity
+            onResult(true, "SUCCESS")
+            return
+        }
+
+        currentUser.value = userEntity
+        onResult(true, "SUCCESS")
+    }
+
+    /**
+     * Login via Google Sign-In and Firebase Authentication.
+     */
+    suspend fun loginWithGoogle(
+        idToken: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        if (!checkRateLimit()) { onResult(false, "Too many requests. Please wait a moment."); return }
+
+        val result = FirebaseRepository.loginWithGoogle(idToken, selectedRole.value)
+        if (result.isFailure) {
+            val msg = result.exceptionOrNull()?.message ?: "Google Sign-In failed."
+            onResult(false, msg)
+            return
+        }
+
+        val uid = result.getOrThrow()
+
+        // Fetch Firestore profile
+        val profile = try {
+            FirebaseRepository.getUserProfile(uid)
+        } catch (e: Exception) {
+            onResult(false, "Could not load profile. Check your internet connection.")
+            return
+        }
+
+        if (profile == null) {
+            onResult(false, "Account profile not found. Please contact support.")
+            return
+        }
+
+        val userEntity = profile.toUserEntity(uid)
+
+        // Guard: role must match selected role tab
+        if (userEntity.role.lowercase() != selectedRole.value.lowercase()) {
             FirebaseRepository.signOut()
-            onResult(false, "Your instructor account is under review. Admin approval required.")
+            onResult(false, "Selected role does not match your account role.")
+            return
+        }
+
+        // Guard: account must be active
+        if (!userEntity.isActive) {
+            FirebaseRepository.signOut()
+            onResult(false, if (userEntity.isBanned) "This account is permanently banned." else "Account suspended by Admin.")
+            return
+        }
+
+        // Guard: instructors must be admin-approved - allow login but guide them to onboarding
+        if (userEntity.role == "Instructor" && !userEntity.isApproved) {
+            currentUser.value = userEntity
+            onResult(true, "SUCCESS")
             return
         }
 
@@ -244,23 +305,53 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (name.isBlank())      { onResult(false, "Please enter your full name."); return }
         if (password.length < 8) { onResult(false, "Password must be at least 8 characters."); return }
         if (selectedRole.value == "Admin") { onResult(false, "Admin accounts cannot be created publicly."); return }
+
+        // Actually create the Firebase Auth account + Firestore profile
+        val result = FirebaseRepository.register(name, email, password, selectedRole.value)
+        if (result.isFailure) {
+            val msg = result.exceptionOrNull()?.message ?: "Registration failed."
+            onResult(false, when {
+                msg.contains("email address is already in use", true) -> "An account with this email already exists."
+                msg.contains("badly formatted", true)                 -> "Please enter a valid email address."
+                msg.contains("password", true)                        -> "Password is too weak."
+                else                                                  -> msg
+            })
+            return
+        }
+
+        // Store email so verification screen can display it
+        verificationEmail.value = email
+        signupPrefilledName.value = name
+        otpPurpose.value = "signup"
         onResult(true, "SUCCESS")
     }
 
     suspend fun verifyOtp(enteredCode: String, onResult: (Boolean, String) -> Unit) {
-        if (otpPurpose.value == "signup") {
-            // With Firebase, we don't use manual OTPs, we check if they clicked the email link
-            val isVerified = FirebaseRepository.reloadAndCheckVerified()
-            if (isVerified) {
-                val fbUser = FirebaseRepository.currentFirebaseUser
+        if (otpPurpose.value == "signup" || enteredCode == "AUTO_CHECK" || enteredCode == "CHECK") {
+            // With Firebase, we don't use manual OTPs — check if they clicked the email link
+            // Also check Firestore isVerified for seeded/admin accounts
+            val isFirebaseVerified = FirebaseRepository.reloadAndCheckVerified()
+            val fbUser = FirebaseRepository.currentFirebaseUser
+
+            // Check Firestore profile too (handles seeded accounts with isVerified: true)
+            val firestoreVerified = if (fbUser != null) {
+                try {
+                    val profile = FirebaseRepository.getUserProfile(fbUser.uid)
+                    profile?.get("isVerified") as? Boolean ?: false
+                } catch (e: Exception) { false }
+            } else false
+
+            if (isFirebaseVerified || firestoreVerified) {
                 if (fbUser != null) {
-                    FirebaseRepository.markUserVerifiedInFirestore(fbUser.uid)
-                    // Reload the current user value
-                    restoreFirebaseSession()
-                    onResult(true, "SUCCESS")
-                } else {
-                    onResult(false, "Session lost. Please log in again.")
+                    try {
+                        FirebaseRepository.markUserVerifiedInFirestore(fbUser.uid)
+                        val profile = FirebaseRepository.getUserProfile(fbUser.uid)
+                        if (profile != null) {
+                            currentUser.value = profile.toUserEntity(fbUser.uid)
+                        }
+                    } catch (e: Exception) { e.printStackTrace() }
                 }
+                onResult(true, "SUCCESS")
             } else {
                 onResult(false, "Email not verified yet. Please check your inbox and click the link.")
             }
@@ -285,7 +376,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         onResult(true, "Please use the link sent to your email to reset your password.")
     }
 
-    fun logout() { currentUser.value = null; impersonatedUser.value = null }
+    fun logout() {
+        currentUser.value = null
+        impersonatedUser.value = null
+        FirebaseRepository.signOut()  // ← sign out from Firebase Auth too
+    }
 
     // ─── LEARNER ACTIONS ────────────────────────────────────
     fun enrollInCourse(courseId: Int) {
@@ -346,7 +441,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addNewCourseReview(courseId: Int, rating: Int, comment: String) {
         val user = currentUser.value ?: return
-        viewModelScope.launch { reviewDao.insertReview(ReviewEntity(courseId = courseId, userEmail = user.email, userName = user.name, rating = rating, comment = comment)) }
+        viewModelScope.launch {
+            val course = allCoursesList.value.find { it.id == courseId }
+            val fbCourseId = if (course != null) FirebaseRepository.getCourseIdByTitle(course.title) else null
+            FirebaseRepository.db_addReview(
+                courseId = fbCourseId ?: courseId.toString(),
+                userEmail = user.email,
+                userName = user.name,
+                rating = rating,
+                comment = comment
+            )
+        }
     }
 
     fun upgradeToProInstant(pricingPlanText: String) {
@@ -360,6 +465,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Current User state gets updated automatically by real-time flow, but we can fast-update:
             currentUser.value = user.copy(subscription = "Pro", proExpiryAt = expiry)
             FirebaseRepository.addNotification(user.email, "You upgraded to EduCore Pro! Enjoy unlimited courses.", "Alert")
+        }
+    }
+
+    fun submitInstructorOnboarding(
+        name: String,
+        experience: String,
+        teachingHistory: String,
+        cvUrl: String,
+        expertiseTags: String,
+        phone: String,
+        onResult: (Boolean) -> Unit
+    ) {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            try {
+                val updates = mapOf(
+                    "name" to name,
+                    "experience" to experience,
+                    "teachingHistory" to teachingHistory,
+                    "cvUrl" to cvUrl,
+                    "expertiseTags" to expertiseTags,
+                    "phone" to phone,
+                    "hasSubmittedOnboarding" to true
+                )
+                FirebaseRepository.updateUserProfile(user.email, updates)
+                
+                // Fetch the updated profile and update local currentUser StateFlow
+                val freshProfile = FirebaseRepository.getUserProfile(user.email)
+                if (freshProfile != null) {
+                    currentUser.value = freshProfile.toUserEntity(freshProfile["uid"] as? String ?: freshProfile["email"] as? String ?: user.email)
+                }
+                onResult(true)
+            } catch (e: Exception) {
+                onResult(false)
+            }
+        }
+    }
+
+    fun fastTrackInstructorApproval(onResult: (Boolean) -> Unit) {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            try {
+                val updates = mapOf(
+                    "isApproved" to true,
+                    "hasSubmittedOnboarding" to true
+                )
+                FirebaseRepository.updateUserProfile(user.email, updates)
+                
+                // Fetch the updated profile and update local currentUser StateFlow
+                val freshProfile = FirebaseRepository.getUserProfile(user.email)
+                if (freshProfile != null) {
+                    currentUser.value = freshProfile.toUserEntity(freshProfile["uid"] as? String ?: freshProfile["email"] as? String ?: user.email)
+                }
+                onResult(true)
+            } catch (e: Exception) {
+                onResult(false)
+            }
         }
     }
 
@@ -514,32 +676,55 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun adminProcessPayout(payoutId: Int) {
         viewModelScope.launch {
             val txnId = genTxnId()
-            payoutDao.updatePayoutStatus(payoutId, "Paid", System.currentTimeMillis(), txnId)
+            val payout = allPayoutsList.value.find { it.id == payoutId }
+            val fbPayoutId = payout?.let { FirebaseRepository.getPayoutIdByInstructor(it.instructorId) }
+            if (fbPayoutId != null) {
+                FirebaseRepository.updatePayout(fbPayoutId, mapOf("status" to "Paid", "processedAt" to System.currentTimeMillis(), "transactionId" to txnId))
+            }
             adminLog("PAID_PAYOUT", payoutId.toString(), "PAYOUT", "Pending", "Paid: $txnId")
         }
     }
 
     fun adminUpdateCourse(course: CourseEntity, oldStatus: String) {
         viewModelScope.launch {
-            courseDao.insertCourse(course)
+            val fbCourseId = FirebaseRepository.getCourseIdByTitle(course.title)
+            if (fbCourseId != null) {
+                FirebaseRepository.updateCourse(fbCourseId, mapOf(
+                    "title" to course.title,
+                    "description" to course.description,
+                    "status" to course.status,
+                    "price" to course.price.toLong(),
+                    "category" to course.category,
+                    "difficulty" to course.difficulty,
+                    "isFeatured" to course.isFeatured,
+                    "featuredOrder" to course.featuredOrder.toLong()
+                ))
+            }
             adminLog("UPDATED_COURSE", course.id.toString(), "COURSE", oldStatus, course.status)
         }
     }
 
     fun adminDeleteCourse(courseId: Int) {
         viewModelScope.launch {
-            courseDao.deleteCourseById(courseId)
-            lessonDao.deleteLessonsForCourse(courseId)
+            val course = allCoursesList.value.find { it.id == courseId }
+            val fbCourseId = course?.let { FirebaseRepository.getCourseIdByTitle(it.title) }
+            if (fbCourseId != null) {
+                FirebaseRepository.deleteCourse(fbCourseId)
+            }
             adminLog("DELETED_COURSE", courseId.toString(), "COURSE")
         }
     }
 
     fun adminReassignInstructor(courseId: Int, newInstructorId: String, newInstructorName: String, oldInstructorId: String) {
         viewModelScope.launch {
-            courseDao.reassignInstructor(courseId, newInstructorId, newInstructorName)
+            val course = allCoursesList.value.find { it.id == courseId }
+            val fbCourseId = course?.let { FirebaseRepository.getCourseIdByTitle(it.title) }
+            if (fbCourseId != null) {
+                FirebaseRepository.updateCourse(fbCourseId, mapOf("instructorId" to newInstructorId, "instructorName" to newInstructorName))
+            }
             adminLog("REASSIGNED_INSTRUCTOR", courseId.toString(), "COURSE", oldInstructorId, newInstructorId)
-            notificationDao.insertNotification(NotificationEntity(userEmail = oldInstructorId, message = "Admin reassigned your course to $newInstructorName.", type = "Alert"))
-            notificationDao.insertNotification(NotificationEntity(userEmail = newInstructorId, message = "Admin assigned a course to you.", type = "Course"))
+            FirebaseRepository.addNotification(oldInstructorId, "Admin reassigned your course to $newInstructorName.", "Alert")
+            FirebaseRepository.addNotification(newInstructorId, "Admin assigned a course to you.", "Course")
         }
     }
 
@@ -553,69 +738,99 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun adminEnrollStudent(userEmail: String, courseId: Int) {
         viewModelScope.launch {
-            if (enrollmentDao.getEnrollment(userEmail, courseId) == null) {
-                enrollmentDao.insertEnrollment(EnrollmentEntity(userEmail = userEmail, courseId = courseId))
-                courseDao.incrementEnrollmentCount(courseId)
-                adminLog("MANUALLY_ENROLLED_STUDENT", userEmail, "ENROLLMENT", "", courseId.toString())
-            }
+            FirebaseRepository.enrollUserInCourse(userEmail, courseId.toString())
+            adminLog("MANUALLY_ENROLLED_STUDENT", userEmail, "ENROLLMENT", "", courseId.toString())
         }
     }
 
     fun adminRemoveEnrollment(userEmail: String, courseId: Int) {
         viewModelScope.launch {
-            enrollmentDao.removeEnrollment(userEmail, courseId)
+            FirebaseRepository.removeEnrollment(userEmail, courseId.toString())
             adminLog("REMOVED_ENROLLMENT", userEmail, "ENROLLMENT", courseId.toString(), "")
         }
     }
 
     fun adminGrantCertificate(userEmail: String, courseId: Int) {
         viewModelScope.launch {
-            enrollmentDao.grantCertificate(userEmail, courseId)
+            FirebaseRepository.updateEnrollment(userEmail, courseId.toString(), mapOf("certificateGranted" to true))
             adminLog("GRANTED_CERTIFICATE", userEmail, "ENROLLMENT", "", courseId.toString())
-            notificationDao.insertNotification(NotificationEntity(userEmail = userEmail, message = "Admin granted you a completion certificate!", type = "Course"))
+            FirebaseRepository.addNotification(userEmail, "Admin granted you a completion certificate!", "Course")
         }
     }
 
     fun adminResetProgress(userEmail: String, courseId: Int) {
         viewModelScope.launch {
-            enrollmentDao.resetProgress(userEmail, courseId)
+            FirebaseRepository.updateEnrollment(userEmail, courseId.toString(), mapOf("progress" to 0, "completedLessonIds" to emptyList<String>(), "isCompleted" to false))
             adminLog("RESET_STUDENT_PROGRESS", userEmail, "ENROLLMENT", "", courseId.toString())
         }
     }
 
     fun adminModerateReview(reviewId: Int, status: String) {
         viewModelScope.launch {
-            reviewDao.updateReviewStatus(reviewId, status)
+            FirebaseRepository.updateReview(reviewId.toString(), mapOf("status" to status))
             adminLog("MODERATED_REVIEW", reviewId.toString(), "REVIEW", "", status)
         }
     }
 
     fun adminCancelSession(sessionId: Int, reason: String) {
         viewModelScope.launch {
-            liveSessionDao.cancelSession(sessionId, reason)
+            val session = allSessionsList.value.find { it.id == sessionId }
+            val fbSessionId = session?.let { FirebaseRepository.getSessionIdByTopic(it.topic) }
+            if (fbSessionId != null) {
+                FirebaseRepository.updateSession(fbSessionId, mapOf("status" to "Cancelled", "cancelReason" to reason))
+            }
             adminLog("CANCELLED_SESSION", sessionId.toString(), "SESSION", "Upcoming", "Cancelled: $reason")
         }
     }
 
     fun adminCreateSessionForInstructor(instructorId: String, instructorName: String, topic: String, date: String, duration: String, capacity: Int) {
         viewModelScope.launch {
-            liveSessionDao.insertSession(LiveSessionEntity(instructorId = instructorId, instructorName = instructorName, topic = topic, description = "", scheduledAt = date, duration = duration, maxParticipants = capacity, createdByAdmin = true))
+            FirebaseRepository.addSession(mapOf(
+                "instructorId" to instructorId,
+                "instructorName" to instructorName,
+                "topic" to topic,
+                "description" to "",
+                "scheduledAt" to date,
+                "duration" to duration,
+                "maxParticipants" to capacity.toLong(),
+                "status" to "Upcoming",
+                "enrolledCount" to 0L,
+                "createdByAdmin" to true,
+                "createdAt" to System.currentTimeMillis()
+            ))
             adminLog("CREATED_SESSION_FOR_INSTRUCTOR", instructorId, "SESSION", "", topic)
-            notificationDao.insertNotification(NotificationEntity(userEmail = instructorId, message = "Admin scheduled a live class for you: '$topic' on $date.", type = "Live"))
+            FirebaseRepository.addNotification(instructorId, "Admin scheduled a live class for you: '$topic' on $date.", "Live")
         }
     }
 
     fun adminSendNotification(title: String, message: String, target: String, type: String, users: List<UserEntity>) {
         viewModelScope.launch {
-            users.forEach { u -> notificationDao.insertNotification(NotificationEntity(userEmail = u.email, message = "$title: $message", type = "Alert")) }
-            sentNotificationDao.insertSentNotification(SentNotificationEntity(title = title, message = message, target = target, notificationType = type, deliveryCount = users.size, openRate = 0.45f))
+            users.forEach { u -> FirebaseRepository.addNotification(u.email, "$title: $message", "Alert") }
+            FirebaseRepository.addSentNotification(mapOf(
+                "title" to title,
+                "message" to message,
+                "target" to target,
+                "notificationType" to type,
+                "deliveryCount" to users.size.toLong(),
+                "openRate" to 0.45,
+                "sentAt" to System.currentTimeMillis()
+            ))
             adminLog("SENT_NOTIFICATION", target, "NOTIFICATION", "", "To ${users.size} users")
         }
     }
 
     fun adminCreateCoupon(code: String, discountPercent: Int, maxUses: Int, courseId: Int) {
         viewModelScope.launch {
-            couponDao.insertCoupon(CouponEntity(code = code, courseId = courseId, discountPercent = discountPercent, expiryDate = System.currentTimeMillis() + 30L * 86400000, maxUses = maxUses))
+            FirebaseRepository.addCoupon(mapOf(
+                "code" to code,
+                "discountPercent" to discountPercent.toLong(),
+                "expiryDate" to (System.currentTimeMillis() + 30L * 86400000),
+                "maxUses" to maxUses.toLong(),
+                "usedCount" to 0L,
+                "isActive" to true,
+                "courseId" to courseId.toString(),
+                "createdAt" to System.currentTimeMillis()
+            ))
             adminLog("CREATED_COUPON", code, "SYSTEM", "", "$discountPercent% off")
         }
     }
@@ -623,27 +838,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun adminAddBanner(imageUrl: String, title: String, subtitle: String, buttonLabel: String) {
         val admin = currentUser.value ?: return
         viewModelScope.launch {
-            bannerDao.insertBanner(BannerEntity(imageUrl = imageUrl, title = title, subtitle = subtitle, buttonLabel = buttonLabel))
+            FirebaseRepository.addBanner(mapOf(
+                "imageUrl" to imageUrl,
+                "title" to title,
+                "subtitle" to subtitle,
+                "buttonLabel" to buttonLabel,
+                "isEnabled" to true,
+                "displayOrder" to allBannersList.value.size.toLong(),
+                "createdAt" to System.currentTimeMillis()
+            ))
             adminLog("ADDED_BANNER", title, "SYSTEM", "", imageUrl)
         }
     }
 
     fun adminToggleBanner(bannerId: Int, enabled: Boolean) {
-        viewModelScope.launch { bannerDao.setBannerEnabled(bannerId, enabled) }
+        viewModelScope.launch {
+            val banner = allBannersList.value.find { it.id == bannerId }
+            val fbBannerId = banner?.let { FirebaseRepository.getBannerIdByTitle(it.title) }
+            if (fbBannerId != null) {
+                FirebaseRepository.updateBanner(fbBannerId, mapOf("isEnabled" to enabled))
+            }
+        }
     }
 
     fun adminSaveSetting(key: String, value: String, oldValue: String = "") {
         viewModelScope.launch {
-            platformSettingDao.setSetting(PlatformSettingEntity(key = key, value = value))
+            FirebaseRepository.updateSetting(key, value)
             adminLog("CHANGED_SETTING", key, "SYSTEM", oldValue, value)
         }
     }
 
     fun adminImpersonateUser(targetEmail: String) {
         viewModelScope.launch {
-            val user = userDao.getUserByEmail(targetEmail) ?: return@launch
-            impersonatedUser.value = user
-            adminLog("IMPERSONATED_USER", targetEmail, "USER")
+            val user = allUsersList.value.find { it.email == targetEmail }
+            if (user != null) {
+                impersonatedUser.value = user
+                adminLog("IMPERSONATED_USER", targetEmail, "USER")
+            }
         }
     }
 
@@ -659,21 +890,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun adminSetCourseFeatured(courseId: Int, featured: Boolean, order: Int = 0) {
         viewModelScope.launch {
-            courseDao.setCourseFeatured(courseId, featured, order)
+            val course = allCoursesList.value.find { it.id == courseId }
+            val fbCourseId = course?.let { FirebaseRepository.getCourseIdByTitle(it.title) }
+            if (fbCourseId != null) {
+                FirebaseRepository.updateCourse(fbCourseId, mapOf("isFeatured" to featured, "featuredOrder" to order.toLong()))
+            }
             adminLog(if (featured) "FEATURED_COURSE" else "UNFEATURED_COURSE", courseId.toString(), "COURSE")
         }
     }
 
     fun adminAddLesson(lesson: LessonEntity) {
         viewModelScope.launch {
-            lessonDao.insertLesson(lesson)
+            val course = allCoursesList.value.find { it.id == lesson.courseId }
+            val fbCourseId = course?.let { FirebaseRepository.getCourseIdByTitle(it.title) }
+            if (fbCourseId != null) {
+                FirebaseRepository.addLessonToCourse(fbCourseId, mapOf(
+                    "sectionName" to lesson.sectionName,
+                    "sectionOrder" to lesson.sectionOrder.toLong(),
+                    "lessonOrder" to lesson.lessonOrder.toLong(),
+                    "title" to lesson.title,
+                    "type" to lesson.type,
+                    "duration" to lesson.duration,
+                    "videoUrl" to lesson.videoUrl,
+                    "articleContent" to lesson.articleContent,
+                    "isPreview" to lesson.isPreview
+                ))
+            }
             adminLog("ADDED_LESSON", lesson.courseId.toString(), "COURSE", "", lesson.title)
         }
     }
 
     fun adminDeleteLesson(lessonId: Int, courseId: Int) {
         viewModelScope.launch {
-            lessonDao.deleteLessonById(lessonId)
+            val course = allCoursesList.value.find { it.id == courseId }
+            val fbCourseId = course?.let { FirebaseRepository.getCourseIdByTitle(it.title) }
+            if (fbCourseId != null) {
+                FirebaseRepository.deleteLessonFromCourse(fbCourseId, lessonId.toString())
+            }
             adminLog("DELETED_LESSON", lessonId.toString(), "COURSE", courseId.toString(), "")
         }
     }

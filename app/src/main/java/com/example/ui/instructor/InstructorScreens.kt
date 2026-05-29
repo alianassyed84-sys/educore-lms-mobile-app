@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +35,7 @@ import com.example.ui.MainViewModel
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
 
-// ━━━━━━━ SECTIONS ROOT CONTROLLER ━━━━━━━
+// ━━━━━━━ INSTRUCTOR MAIN SCREEN ━━━━━━━
 @Composable
 fun InstructorMainScreen(
     viewModel: MainViewModel,
@@ -43,87 +44,130 @@ fun InstructorMainScreen(
     var activeTab by remember { mutableStateOf("Dashboard") }
     val currentUserState by viewModel.currentUser.collectAsState()
     val user = currentUserState ?: return
-
     var showCourseWizard by remember { mutableStateOf(false) }
 
     if (showCourseWizard) {
-        CourseBuilderWizard(
-            viewModel = viewModel,
-            onDismiss = { showCourseWizard = false }
-        )
-    } else {
-        Scaffold(
-            containerColor = DarkBg,
-            topBar = {
-                Column(modifier = Modifier.background(DarkCardBg)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+        CourseBuilderWizard(viewModel = viewModel, onDismiss = { showCourseWizard = false })
+        return
+    }
+
+    val tabs = listOf(
+        Triple("Dashboard", Icons.Default.Dashboard,   "Dashboard"),
+        Triple("Courses",   Icons.Default.MenuBook,    "Courses"),
+        Triple("Analytics", Icons.Default.BarChart,    "Analytics"),
+        Triple("Live",      Icons.Default.VideoCall,   "Live"),
+        Triple("Payouts",   Icons.Default.AccountBalanceWallet, "Payouts")
+    )
+
+    Scaffold(
+        containerColor = DarkBg,
+        topBar = {
+            // ── Premium Top Bar ──────────────────────────────
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color(0xFF12122A), DarkCardBg)))
+            ) {
+                // Bottom border gradient
+                Box(
+                    Modifier.fillMaxWidth().height(1.dp).align(Alignment.BottomStart)
+                        .background(Brush.horizontalGradient(listOf(Color.Transparent, IndigoPrimary, EmeraldSecondary, Color.Transparent)))
+                )
+                Row(
+                    Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Avatar with gradient ring
+                        Box(
+                            Modifier.size(40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(Modifier.fillMaxSize().clip(CircleShape).background(Brush.linearGradient(listOf(IndigoPrimary, EmeraldSecondary))))
                             Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(IndigoPrimary),
+                                Modifier.size(36.dp).clip(CircleShape).background(DarkCardBg).align(Alignment.Center),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(user.name.take(1), color = Color.White, fontWeight = FontWeight.Bold)
+                                Text(user.name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(text = "Instructor Studio", fontWeight = FontWeight.Bold, color = HeadingText, fontSize = 16.sp)
                         }
-
-                        IconButton(onClick = onLogout) {
-                            Icon(imageVector = Icons.Default.ExitToApp, contentDescription = "Exit", tint = RedDanger)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Instructor Studio", fontWeight = FontWeight.Bold, color = HeadingText, fontSize = 15.sp)
+                            Text(user.name, fontSize = 11.sp, color = BodyText)
                         }
                     }
-
-                    // Top Tab row selectors
-                    ScrollableTabRow(
-                        selectedTabIndex = when (activeTab) {
-                            "Dashboard" -> 0
-                            "Courses" -> 1
-                            "Analytics" -> 2
-                            "Live" -> 3
-                            else -> 4
-                        },
-                        containerColor = DarkCardBg,
-                        contentColor = IndigoPrimary,
-                        edgePadding = 12.dp
-                    ) {
-                        val tabs = listOf("Dashboard", "Courses", "Analytics", "Live", "Payouts")
-                        tabs.forEach { tabName ->
-                            Tab(
-                                selected = activeTab == tabName,
-                                onClick = { activeTab = tabName },
-                                text = { Text(tabName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (activeTab == tabName) IndigoPrimary else BodyText) }
-                            )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Create course FAB
+                        Box(
+                            Modifier.clip(RoundedCornerShape(10.dp))
+                                .background(Brush.linearGradient(listOf(IndigoPrimary, Color(0xFF8B5CF6))))
+                                .clickable { showCourseWizard = true }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("New Course", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(onClick = onLogout) {
+                            Icon(Icons.Default.Logout, null, tint = RedDanger.copy(0.8f), modifier = Modifier.size(20.dp))
                         }
                     }
                 }
             }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                when (activeTab) {
-                    "Dashboard" -> InstructorHomeScreen(viewModel, user, onCreateCourseClick = { showCourseWizard = true }, onNavigateTab = { activeTab = it })
-                    "Courses" -> InstructorCoursesListScreen(viewModel, user, onCreateCourseClick = { showCourseWizard = true })
-                    "Analytics" -> InstructorAnalyticsScreen(viewModel)
-                    "Live" -> LiveSessionManagerScreen(viewModel)
-                    "Payouts" -> InstructorPayoutsScreen(viewModel, user)
+        },
+        bottomBar = {
+            // ── Premium Bottom Nav ───────────────────────────
+            Box(Modifier.fillMaxWidth().background(DarkCardBg).navigationBarsPadding()) {
+                Box(
+                    Modifier.fillMaxWidth().height(1.dp)
+                        .background(Brush.horizontalGradient(listOf(Color.Transparent, EmeraldSecondary, IndigoPrimary, Color.Transparent)))
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    tabs.forEach { (id, icon, label) ->
+                        val selected = activeTab == id
+                        val scale by animateFloatAsState(if (selected) 1.08f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "scale")
+                        Column(
+                            Modifier.weight(1f).graphicsLayer { scaleX = scale; scaleY = scale }
+                                .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { activeTab = id },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                Modifier.size(if (selected) 42.dp else 36.dp).clip(RoundedCornerShape(12.dp))
+                                    .background(if (selected) Brush.linearGradient(listOf(EmeraldSecondary, IndigoPrimary)) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(icon, null, tint = if (selected) Color.White else MutedText, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(Modifier.height(3.dp))
+                            Text(label, fontSize = 9.sp, color = if (selected) EmeraldSecondary else MutedText, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+                        }
+                    }
                 }
+            }
+        }
+    ) { innerPadding ->
+        Box(Modifier.fillMaxSize().padding(innerPadding)) {
+            when (activeTab) {
+                "Dashboard" -> InstructorHomeScreen(viewModel, user, onCreateCourse = { showCourseWizard = true }, onNavigateTab = { idx ->
+                    activeTab = when (idx) { 0 -> "Dashboard"; 1 -> "Courses"; 2 -> "Analytics"; 3 -> "Live"; else -> "Payouts" }
+                })
+                "Courses"   -> InstructorCoursesScreen(viewModel, user, onEditCourse = {})
+                "Analytics" -> InstructorAnalyticsScreen(viewModel, user)
+                "Live"      -> LiveSessionManagerScreen(viewModel)
+                "Payouts"   -> InstructorPayoutsScreen(viewModel, user)
             }
         }
     }
 }
+
 
 // ━━━━━━━ SCREEN 1: INSTRUCTOR HOME ━━━━━━━
 @Composable
@@ -180,42 +224,57 @@ fun InstructorHomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedButton(
-                    onClick = onCreateCourseClick,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, CardBorderColor)
+                // Action 1: Create Course
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(DarkCardBg)
+                        .border(1.dp, CardBorderColor, RoundedCornerShape(14.dp))
+                        .clickable { onCreateCourseClick() }
+                        .padding(vertical = 12.dp, horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 4.dp)) {
-                        Icon(Icons.Default.AddCircle, contentDescription = null, tint = IndigoPrimary)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Create Course", fontSize = 11.sp, color = HeadingText)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.AddCircle, contentDescription = null, tint = IndigoPrimary, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("Create Course", fontSize = 11.sp, color = HeadingText, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     }
                 }
 
-                OutlinedButton(
-                    onClick = { onNavigateTab("Live") },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, CardBorderColor)
+                // Action 2: Schedule Live
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(DarkCardBg)
+                        .border(1.dp, CardBorderColor, RoundedCornerShape(14.dp))
+                        .clickable { onNavigateTab("Live") }
+                        .padding(vertical = 12.dp, horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 4.dp)) {
-                        Icon(Icons.Default.Podcasts, contentDescription = null, tint = EmeraldSecondary)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Schedule Live", fontSize = 11.sp, color = HeadingText)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Podcasts, contentDescription = null, tint = EmeraldSecondary, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("Schedule Live", fontSize = 11.sp, color = HeadingText, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     }
                 }
 
-                OutlinedButton(
-                    onClick = { onNavigateTab("Analytics") },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, CardBorderColor)
+                // Action 3: Analytics
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(DarkCardBg)
+                        .border(1.dp, CardBorderColor, RoundedCornerShape(14.dp))
+                        .clickable { onNavigateTab("Analytics") }
+                        .padding(vertical = 12.dp, horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 4.dp)) {
-                        Icon(Icons.Default.QueryStats, contentDescription = null, tint = AmberWarning)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Analytics", fontSize = 11.sp, color = HeadingText)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.QueryStats, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("Analytics", fontSize = 11.sp, color = HeadingText, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     }
                 }
             }
@@ -378,22 +437,30 @@ fun InstructorCoursesListScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    OutlinedButton(
-                                        onClick = { context.showToast("Editing Course Content currently disabled.") },
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f),
-                                        border = BorderStroke(1.dp, CardBorderColor)
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(DarkBg)
+                                            .border(1.dp, CardBorderColor, RoundedCornerShape(12.dp))
+                                            .clickable { context.showToast("Editing Course Content currently disabled.") }
+                                            .padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Text("Edit Details", fontSize = 11.sp, color = HeadingText)
+                                        Text("Edit Details", fontSize = 11.sp, color = HeadingText, fontWeight = FontWeight.Bold)
                                     }
 
-                                    OutlinedButton(
-                                        onClick = { context.showToast("Underdevelopment Analytics Drilldown.") },
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f),
-                                        border = BorderStroke(1.dp, CardBorderColor)
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(DarkBg)
+                                            .border(1.dp, CardBorderColor, RoundedCornerShape(12.dp))
+                                            .clickable { context.showToast("Underdevelopment Analytics Drilldown.") }
+                                            .padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Text("Analytics", fontSize = 11.sp, color = HeadingText)
+                                        Text("Analytics", fontSize = 11.sp, color = HeadingText, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -685,46 +752,59 @@ fun CourseBuilderWizard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (step > 1) {
-                    OutlinedButton(
-                        onClick = { step-- },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = HeadingText),
-                        border = BorderStroke(1.dp, CardBorderColor)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(DarkCardBg)
+                            .border(1.dp, CardBorderColor, RoundedCornerShape(12.dp))
+                            .clickable { step-- }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text("Back")
+                        Text("Back", color = HeadingText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
-                } else {
-                    Spacer(modifier = Modifier.width(1.dp))
                 }
 
-                Button(
-                    onClick = {
-                        if (step < 4) {
-                            if (step == 1 && courseTitle.isBlank()) {
-                                context.showToast("Please enter course title.")
-                                return@Button
+                Box(
+                    modifier = Modifier
+                        .weight(2f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(IndigoPrimary)
+                        .clickable {
+                            if (step < 4) {
+                                if (step == 1 && courseTitle.isBlank()) {
+                                    context.showToast("Please enter course title.")
+                                    return@clickable
+                                }
+                                step++
+                            } else {
+                                // Publish Action
+                                val finalPrice = if (isPaid) priceStr.toIntOrNull() ?: 0 else 0
+                                viewModel.publishCourseByInstructor(
+                                    courseTitle,
+                                    courseDesc,
+                                    courseCategory,
+                                    difficulty,
+                                    finalPrice,
+                                    lessonsDraft
+                                )
+                                context.showToast("Course successfully submitted for review!", Toast.LENGTH_LONG)
+                                onDismiss()
                             }
-                            step++
-                        } else {
-                            // Publish Action
-                            val finalPrice = if (isPaid) priceStr.toIntOrNull() ?: 0 else 0
-                            viewModel.publishCourseByInstructor(
-                                courseTitle,
-                                courseDesc,
-                                courseCategory,
-                                difficulty,
-                                finalPrice,
-                                lessonsDraft
-                            )
-                            context.showToast("Course successfully submitted for review!", Toast.LENGTH_LONG)
-                            onDismiss()
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(text = if (step == 4) "Submit for Admin Review" else "Next Step")
+                    Text(
+                        text = if (step == 4) "Submit for Admin Review" else "Next Step",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
                 }
             }
         }
@@ -843,7 +923,7 @@ fun InstructorAnalyticsScreen(
                         Text("22% representation", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
 
-                    Divider(color = CardBorderColor)
+                    HorizontalDivider(color = CardBorderColor)
 
                     Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                         Text("Skill Level: Beginners", fontSize = 12.sp, color = BodyText)

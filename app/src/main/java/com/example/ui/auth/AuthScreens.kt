@@ -35,8 +35,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.MainViewModel
 import com.example.ui.theme.*
+import com.example.data.FirebaseRepository
+import com.example.data.toUserEntity
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 // ━━━━━━━ SCREEN 1: SPLASH SCREEN ━━━━━━━
 @Composable
@@ -69,26 +79,18 @@ fun SplashScreen(
             verticalArrangement = Arrangement.Center
         ) {
             // Icon / Logo Representation with neat gradient border
-            Box(
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.app_logo),
+                contentDescription = "Learnora Logo",
                 modifier = Modifier
                     .size(90.dp)
                     .clip(RoundedCornerShape(22.dp))
-                    .background(IndigoPrimary)
-                    .padding(4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.School,
-                    contentDescription = "EduCore Logo",
-                    tint = Color.White,
-                    modifier = Modifier.size(54.dp)
-                )
-            }
+            )
 
             Spacer(modifier = Modifier.height(18.dp))
 
             Text(
-                text = "EduCore",
+                text = "Learnora",
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = HeadingText
@@ -97,11 +99,11 @@ fun SplashScreen(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "Learn. Build. Grow.",
+                text = "Learn. Grow. Succeed.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = EmeraldSecondary,
                 fontWeight = FontWeight.Medium,
-                letterSpacing = 2.sp
+                letterSpacing = 1.sp
             )
         }
     }
@@ -120,20 +122,256 @@ fun OnboardingScreen(
     var currentSlide by remember { mutableStateOf(0) }
     val slides = listOf(
         OnboardingSlideData(
-            title = "Learn World-Class Skills",
-            body = "Access 500+ courses in coding, design, and business with active feedback trackers.",
-            icon = Icons.Default.Laptop
+            title = "Empower Your Learning",
+            body = "Embark on an immersive, glassmorphic visual journey with 500+ premium expert courses and personal interactive feedback trackers.",
+            imageRes = com.example.R.drawable.student_learning
         ),
         OnboardingSlideData(
-            title = "Teach & Earn Revenue",
-            body = "Create structured video courses, compile quizzes, go live, and build your student base.",
-            icon = Icons.Default.School // represent instructor with custom avatar
+            title = "Teach & Scale Global Studios",
+            body = "Build comprehensive premium video curriculums, organize live class streams, and scale your passive recurring revenue studio.",
+            imageRes = com.example.R.drawable.teacher_teaching
         ),
         OnboardingSlideData(
-            title = "Track Every Metric",
-            body = "Admins get full control over platform performance, revenue details, and student engagement.",
-            icon = Icons.Default.Analytics
+            title = "Command Center Analytics",
+            body = "Experience full real-time operational control, monitor performance grids, inspect user logs, and track daily payout pipelines.",
+            imageRes = com.example.R.drawable.admin_analytics
         )
+    )
+
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // Full Screen Slideshow Image Background
+        AnimatedContent(
+            targetState = currentSlide,
+            transitionSpec = {
+                fadeIn(animationSpec = tween(700)) togetherWith
+                        fadeOut(animationSpec = tween(700))
+            },
+            modifier = Modifier.fillMaxSize(),
+            label = "fullscreen_slideshow"
+        ) { slideIdx ->
+            val slide = slides[slideIdx]
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = slide.imageRes),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        // Semi-transparent deep HSL visual scrim overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.35f),
+                            Color.Black.copy(alpha = 0.65f),
+                            DarkBg.copy(alpha = 0.95f),
+                            DarkBg
+                        )
+                    )
+                )
+        )
+
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Sleek Branding tag
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.app_logo),
+                            contentDescription = "Learnora Logo",
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Learnora", color = HeadingText, fontWeight = FontWeight.Black, fontSize = 16.sp, letterSpacing = 0.5.sp)
+                    }
+
+                    Text(
+                        text = "Skip",
+                        color = HeadingText.copy(alpha = 0.8f),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onFinished() }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                // Glassmorphic bottom content block
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(SurfaceElevated.copy(alpha = 0.25f))
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(listOf(CardBorderColor.copy(alpha = 0.3f), CardBorderColor.copy(alpha = 0.05f))),
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                        .padding(24.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // Text slide block with animated switching entry
+                        AnimatedContent(
+                            targetState = currentSlide,
+                            transitionSpec = {
+                                slideInHorizontally { width -> width } + fadeIn() togetherWith
+                                        slideOutHorizontally { width -> -width } + fadeOut()
+                            },
+                            label = "slide_content"
+                        ) { slideIdx ->
+                            val activeSlide = slides[slideIdx]
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = activeSlide.title,
+                                    style = MaterialTheme.typography.displayMedium,
+                                    color = HeadingText,
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = (-0.5).sp
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Text(
+                                    text = activeSlide.body,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = BodyText,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 20.sp,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(28.dp))
+
+                        // Interactive indicator pill row
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            slides.forEachIndexed { index, _ ->
+                                val active = index == currentSlide
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = 4.dp)
+                                        .height(6.dp)
+                                        .width(if (active) 28.dp else 8.dp)
+                                        .clip(RoundedCornerShape(3.dp))
+                                        .background(
+                                            if (active) Brush.horizontalGradient(listOf(IndigoPrimary, EmeraldSecondary))
+                                            else Brush.linearGradient(listOf(MutedText.copy(alpha = 0.3f), MutedText.copy(alpha = 0.3f)))
+                                        )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(28.dp))
+
+                        val buttonText = if (currentSlide == 2) "Launch Studio" else "Continue"
+                        Button(
+                            onClick = {
+                                if (currentSlide < 2) {
+                                    currentSlide++
+                                } else {
+                                    onFinished()
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .border(
+                                    width = 1.dp,
+                                    brush = Brush.horizontalGradient(listOf(IndigoPrimary, EmeraldSecondary)),
+                                    shape = RoundedCornerShape(14.dp)
+                                ),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = buttonText,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color.White
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = if (currentSlide == 2) Icons.Default.Launch else Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Next",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+    }
+}
+
+data class OnboardingSlideData(
+    val title: String,
+    val body: String,
+    val imageRes: Int
+)
+
+// ━━━━━━━ SCREEN 3: ROLE SELECTION SCREEN ━━━━━━━
+@Composable
+fun RoleSelectionScreen(
+    viewModel: MainViewModel,
+    onRoleSelected: () -> Unit
+) {
+    val selectedRole = viewModel.selectedRole.value
+
+    // Subtle background glowing circles
+    val infiniteTransition = rememberInfiniteTransition(label = "bg_glow")
+    val pulseGlow by infiniteTransition.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bg_pulse"
     )
 
     Scaffold(
@@ -143,112 +381,130 @@ fun OnboardingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.End
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Skip",
-                    color = BodyText,
-                    fontWeight = FontWeight.Medium,
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.app_logo),
+                    contentDescription = "Learnora Logo",
                     modifier = Modifier
-                        .clickable { onFinished() }
-                        .padding(8.dp)
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
                 )
+                Spacer(Modifier.width(10.dp))
+                Text("Learnora LMS", color = HeadingText, fontWeight = FontWeight.Black, fontSize = 18.sp)
             }
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Screen center presentation
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(160.dp)
-                        .clip(CircleShape)
-                        .background(DarkCardBg)
-                        .border(1.dp, CardBorderColor, CircleShape)
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val slide = slides[currentSlide]
-                    Icon(
-                        imageVector = if (currentSlide == 1) Icons.Default.Groups else slide.icon,
-                        contentDescription = "Slide Icon",
-                        tint = IndigoPrimary,
-                        modifier = Modifier.size(64.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(40.dp))
-
-                Text(
-                    text = slides[currentSlide].title,
-                    style = MaterialTheme.typography.displayMedium,
-                    color = HeadingText,
-                    textAlign = TextAlign.Center,
-                    fontSize = 24.sp
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = slides[currentSlide].body,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = BodyText,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 24.sp
-                )
-            }
-
-            // Bottom elements
-            Spacer(modifier = Modifier.height(16.dp))
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(bottom = 32.dp)
-            ) {
-                // Indicators inside row
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    slides.forEachIndexed { index, _ ->
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 4.dp)
-                                .height(8.dp)
-                                .width(if (index == currentSlide) 24.dp else 8.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(if (index == currentSlide) IndigoPrimary else MutedText)
+            // Neon Background Radial Orb Glows
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        // Top Indigo Glow
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(IndigoPrimary.copy(alpha = 0.12f), Color.Transparent)
+                            ),
+                            radius = size.minDimension * 0.9f * pulseGlow,
+                            center = androidx.compose.ui.geometry.Offset(size.width * 0.2f, size.height * 0.1f)
                         )
+                        // Bottom Emerald Glow
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(EmeraldSecondary.copy(alpha = 0.08f), Color.Transparent)
+                            ),
+                            radius = size.minDimension * 0.9f * pulseGlow,
+                            center = androidx.compose.ui.geometry.Offset(size.width * 0.8f, size.height * 0.9f)
+                        )
+                    }
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Establish Your Nexus",
+                        style = MaterialTheme.typography.displayMedium,
+                        fontSize = 28.sp,
+                        color = HeadingText,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = (-0.5).sp
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Select your clearance role to access the workspace.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = BodyText,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(36.dp))
+
+                    // Learner Card
+                    RoleCard(
+                        title = "Learner Portal",
+                        subtitle = "Access 500+ premium video modules, track credits, and gain world-class skills.",
+                        icon = Icons.Default.School,
+                        isSelected = selectedRole == "Learner"
+                    ) {
+                        viewModel.selectedRole.value = "Learner"
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Instructor Card
+                    RoleCard(
+                        title = "Instructor Studio",
+                        subtitle = "Build interactive curriculums, organize live lectures, and manage revenue pipelines.",
+                        icon = Icons.Default.WorkHistory,
+                        isSelected = selectedRole == "Instructor"
+                    ) {
+                        viewModel.selectedRole.value = "Instructor"
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Admin Card
+                    RoleCard(
+                        title = "Command Center (Admin)",
+                        subtitle = "Moderate credentials, audit verification records, manage users, and issue payouts.",
+                        icon = Icons.Default.Security,
+                        isSelected = selectedRole == "Admin"
+                    ) {
+                        viewModel.selectedRole.value = "Admin"
                     }
                 }
 
-                Spacer(modifier = Modifier.height(40.dp))
-
-                val buttonText = if (currentSlide == 2) "Get Started" else "Next"
                 Button(
-                    onClick = {
-                        if (currentSlide < 2) {
-                            currentSlide++
-                        } else {
-                            onFinished()
-                        }
-                    },
+                    onClick = { onRoleSelected() },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
+                        .height(54.dp)
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.horizontalGradient(listOf(IndigoPrimary, EmeraldSecondary)),
+                            shape = RoundedCornerShape(14.dp)
+                        ),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -256,122 +512,20 @@ fun OnboardingScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = buttonText,
+                            text = "Access Workspace",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
                             color = Color.White
                         )
-                        if (currentSlide < 2) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "Next Arrow",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Continue",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
-            }
-        }
-    }
-}
-
-data class OnboardingSlideData(
-    val title: String,
-    val body: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector
-)
-
-// ━━━━━━━ SCREEN 3: ROLE SELECTION SCREEN ━━━━━━━
-@Composable
-fun RoleSelectionScreen(
-    viewModel: MainViewModel,
-    onRoleSelected: () -> Unit
-) {
-    Scaffold(
-        containerColor = DarkBg
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 24.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Who are you?",
-                    style = MaterialTheme.typography.displayMedium,
-                    fontSize = 28.sp,
-                    color = HeadingText,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Select your role to continue",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = BodyText
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Learner Card
-                RoleCard(
-                    title = "Learner",
-                    subtitle = "Explore online courses and grow your professional skills",
-                    icon = Icons.Default.School,
-                    isSelected = viewModel.selectedRole.value == "Learner"
-                ) {
-                    viewModel.selectedRole.value = "Learner"
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Instructor Card
-                RoleCard(
-                    title = "Instructor",
-                    subtitle = "Build awesome curriculums, teach live classes and earn revenues",
-                    icon = Icons.Default.WorkHistory, // Chalkboard representation
-                    isSelected = viewModel.selectedRole.value == "Instructor"
-                ) {
-                    viewModel.selectedRole.value = "Instructor"
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Admin Card
-                RoleCard(
-                    title = "Admin",
-                    subtitle = "Moderate entire platform, manage users, and process payouts",
-                    icon = Icons.Default.Security,
-                    isSelected = viewModel.selectedRole.value == "Admin"
-                ) {
-                    viewModel.selectedRole.value = "Admin"
-                }
-            }
-
-            Button(
-                onClick = { onRoleSelected() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
-            ) {
-                Text(
-                    text = "Continue",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = Color.White
-                )
             }
         }
     }
@@ -385,18 +539,30 @@ fun RoleCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    // Dynamic scale animation on select
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.02f else 0.98f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "scale"
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer(scaleX = scale, scaleY = scale)
             .clickable { onClick() }
             .border(
                 width = 1.5.dp,
-                color = if (isSelected) IndigoPrimary else CardBorderColor,
+                brush = if (isSelected) {
+                    Brush.linearGradient(listOf(IndigoPrimary, EmeraldSecondary))
+                } else {
+                    Brush.linearGradient(listOf(CardBorderColor, CardBorderColor.copy(alpha = 0.3f)))
+                },
                 shape = RoundedCornerShape(16.dp)
             ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) DarkCardBg else DarkBg
+            containerColor = if (isSelected) DarkCardBg else SurfaceElevated.copy(alpha = 0.5f)
         )
     ) {
         Row(
@@ -409,7 +575,13 @@ fun RoleCard(
                 modifier = Modifier
                     .size(50.dp)
                     .clip(CircleShape)
-                    .background(if (isSelected) IndigoPrimary else DarkCardBg)
+                    .background(
+                        if (isSelected) {
+                            Brush.linearGradient(listOf(IndigoPrimary, EmeraldSecondary))
+                        } else {
+                            Brush.linearGradient(listOf(DarkCardBg, DarkCardBg))
+                        }
+                    )
                     .border(1.dp, CardBorderColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
@@ -420,28 +592,22 @@ fun RoleCard(
                     modifier = Modifier.size(24.dp)
                 )
             }
-
             Spacer(modifier = Modifier.width(16.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = HeadingText,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) HeadingText else BodyText,
+                    fontSize = 16.sp
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = BodyText,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp
+                    color = if (isSelected) BodyText else MutedText,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
                 )
             }
-
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
@@ -469,9 +635,45 @@ fun LoginScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = DarkBg
-    ) { innerPadding ->
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            val idToken = account.idToken
+            if (idToken != null) {
+                isLoading = true
+                coroutineScope.launch {
+                    viewModel.loginWithGoogle(idToken) { success, msg ->
+                        isLoading = false
+                        if (success) {
+                            context.showToast("Google sign in successful!")
+                            onLoginSuccess()
+                        } else {
+                            context.showToast(msg, Toast.LENGTH_LONG)
+                        }
+                    }
+                }
+            } else {
+                context.showToast("Google Sign-In failed: Null ID Token")
+            }
+        } catch (e: ApiException) {
+            val statusCode = e.statusCode
+            // Common cause of 12500 is missing SHA-1 configuration on Firebase Console, warn developers
+            val helpfulMsg = when (statusCode) {
+                12500 -> "Google Sign-In failed (Status 12500). Please verify that your debug SHA-1 fingerprint is added to the Firebase Console and Google Play Services are up-to-date."
+                10 -> "Google Sign-In failed (Status 10: Developer Error). Please verify that your SHA-1 fingerprint matches the certificate registered in the Firebase console."
+                else -> "Google Sign-In failed: ${e.localizedMessage}"
+            }
+            context.showToast(helpfulMsg, Toast.LENGTH_LONG)
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = DarkBg
+        ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -484,25 +686,18 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(40.dp))
 
             // Logo
-            Box(
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.app_logo),
+                contentDescription = "Learnora Logo",
                 modifier = Modifier
                     .size(64.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(IndigoPrimary),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.School,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(36.dp)
-                )
-            }
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "EduCore",
+                text = "Learnora",
                 style = MaterialTheme.typography.displayMedium,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold
@@ -656,7 +851,15 @@ fun LoginScreen(
             ) {
                 OutlinedButton(
                     onClick = {
-                        context.showToast("Social integration simulated.")
+                        val webClientId = context.getString(com.example.R.string.default_web_client_id)
+                        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                            .requestIdToken(webClientId)
+                            .requestEmail()
+                            .build()
+                        val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                        googleSignInClient.signOut().addOnCompleteListener {
+                            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                        }
                     },
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(12.dp),
@@ -714,7 +917,94 @@ fun LoginScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Developer Signature Footer
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Build by Syed Anas Ali",
+                    color = MutedText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                IconButton(
+                    onClick = {
+                        try {
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://www.linkedin.com/in/syed-anas-ali-861340384/")
+                            )
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            context.showToast("Unable to open link")
+                        }
+                    },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(IndigoPrimary.copy(alpha = 0.1f))
+                        .border(1.dp, IndigoPrimary.copy(alpha = 0.3f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Link,
+                        contentDescription = "LinkedIn Profile",
+                        tint = IndigoPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(30.dp))
+        }
+    }
+}
+
+    // Stunning Premium Loading Overlay
+    if (isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f))
+                .clickable(enabled = false) {}, // Blocks all input clicks
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                modifier = Modifier
+                    .width(260.dp)
+                    .border(1.dp, CardBorderColor, RoundedCornerShape(24.dp)),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkCardBg)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(
+                        color = IndigoPrimary,
+                        strokeWidth = 4.dp,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Text(
+                        text = "Authenticating...",
+                        color = HeadingText,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Connecting securely to Learnora Cloud",
+                        color = BodyText,
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }
@@ -991,216 +1281,159 @@ fun EmailVerificationScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val focusManager = LocalFocusManager.current
-    val focusRequesters = remember { List(6) { FocusRequester() } }
 
-    val otpDigits = remember { mutableStateListOf("", "", "", "", "", "") }
-    var secondsLeft by remember { mutableStateOf(60) }
-    var shakeTrigger by remember { mutableStateOf(false) }
-    val shakeOffset = remember { Animatable(0f) }
+    var isChecking  by remember { mutableStateOf(true) }   // auto-check on load
+    var isSending   by remember { mutableStateOf(false) }
+    var secondsLeft by remember { mutableStateOf(30) }
+    val email = viewModel.verificationEmail.value
 
-    // Start 60 second countdown resend timer
-    LaunchedEffect(secondsLeft) {
-        if (secondsLeft > 0) {
-            delay(1000)
-            secondsLeft--
+    // ── Auto-check on first load ───────────────────────────────────────────
+    // For seeded accounts (isVerified already set in Firebase Auth or Firestore)
+    // this passes through immediately without user interaction
+    LaunchedEffect(Unit) {
+        isChecking = true
+        coroutineScope.launch {
+            viewModel.verifyOtp("AUTO_CHECK") { success, route ->
+                isChecking = false
+                if (success) {
+                    // Already verified — go straight to the dashboard
+                    onSuccess(viewModel.currentUser.value?.role ?: "Learner")
+                }
+                // If not verified, stay on this screen to prompt the user
+            }
         }
     }
 
-    // Shake animation logic
-    LaunchedEffect(shakeTrigger) {
-        if (shakeTrigger) {
-            repeat(4) {
-                shakeOffset.animateTo(
-                    targetValue = if (shakeOffset.value == 0f) 15f else -15f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessHigh)
-                )
-            }
-            shakeOffset.animateTo(0f)
-            shakeTrigger = false
-        }
+    // ── Countdown timer for resend button ─────────────────────────────────
+    LaunchedEffect(secondsLeft) {
+        if (secondsLeft > 0) { delay(1000); secondsLeft-- }
     }
 
     Scaffold(
         containerColor = DarkBg,
         topBar = {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(16.dp),
                 horizontalArrangement = Arrangement.Start
             ) {
                 IconButton(onClick = { onCancel() }) {
-                    Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = HeadingText)
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = HeadingText)
                 }
             }
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "Verify Email",
-                style = MaterialTheme.typography.displayMedium,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "We sent a code to",
-                style = MaterialTheme.typography.bodyLarge,
-                color = BodyText
-            )
-
-            Text(
-                text = viewModel.verificationEmail.value,
-                style = MaterialTheme.typography.bodyLarge,
-                color = EmeraldSecondary,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Simulated OTP visual reveal for testing
+        if (isChecking) {
+            // Checking verification status — show spinner
             Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(DarkCardBg)
-                    .border(1.dp, CardBorderColor, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "Simulated Code: ${viewModel.generatedOtp.value}",
-                    fontSize = 12.sp,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    color = AmberWarning
-                )
-            }
-
-            Spacer(modifier = Modifier.height(30.dp))
-
-            // OTP Input digits
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer(translationX = shakeOffset.value),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                for (i in 0..5) {
-                    OutlinedTextField(
-                        value = otpDigits[i],
-                        onValueChange = { newValue: String ->
-                            if (newValue.length <= 1) {
-                                // Strip to only digit
-                                if (newValue.isEmpty()) {
-                                    otpDigits[i] = ""
-                                    // Move back on deletion
-                                    if (i > 0) {
-                                        runCatching { focusRequesters[i - 1].requestFocus() }
-                                    }
-                                } else if (newValue.all { char: Char -> char.isDigit() }) {
-                                    otpDigits[i] = newValue
-                                    // Move to next field
-                                    if (i < 5) {
-                                        runCatching { focusRequesters[i + 1].requestFocus() }
-                                    } else {
-                                        focusManager.clearFocus() // Finished last digit
-                                    }
-                                }
-                            } else if (newValue.length == 2 && otpDigits[i].isNotEmpty()) {
-                                val nextChar = newValue.last().toString()
-                                if (nextChar.all { char: Char -> char.isDigit() }) {
-                                    otpDigits[i] = nextChar
-                                    if (i < 5) {
-                                        runCatching { focusRequesters[i + 1].requestFocus() }
-                                    } else {
-                                        focusManager.clearFocus()
-                                    }
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        textStyle = LocalTextStyle.current.copy(
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = HeadingText,
-                            textAlign = TextAlign.Center
-                        ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier
-                            .size(50.dp)
-                            .focusRequester(focusRequesters[i]),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = IndigoPrimary,
-                            unfocusedBorderColor = CardBorderColor
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = IndigoPrimary, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(20.dp))
+                    Text("Checking verification status…", color = BodyText, fontSize = 14.sp)
                 }
             }
+        } else {
+            // Not yet verified — ask user to click the link in their email
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Icon
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(IndigoGlow)
+                        .border(1.dp, IndigoPrimary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.MarkEmailUnread, contentDescription = null,
+                        tint = IndigoPrimary, modifier = Modifier.size(38.dp))
+                }
 
-            Spacer(modifier = Modifier.height(40.dp))
+                Spacer(Modifier.height(28.dp))
 
-            // Verify Button
-            Button(
-                onClick = {
-                    val code = otpDigits.joinToString("")
-                    if (code.length < 6) {
-                        context.showToast("Please enter all 6 digits.")
-                        shakeTrigger = true
-                        return@Button
-                    }
+                Text("Verify Your Email",
+                    style = MaterialTheme.typography.displayMedium,
+                    fontSize = 26.sp, fontWeight = FontWeight.Bold, color = HeadingText)
 
-                    coroutineScope.launch {
-                        viewModel.verifyOtp(code) { success, route ->
-                            if (success) {
-                                context.showToast("Verification successful!")
-                                onSuccess(route)
-                            } else {
-                                context.showToast(route)
-                                shakeTrigger = true
+                Spacer(Modifier.height(12.dp))
+
+                Text("A verification link has been sent to",
+                    style = MaterialTheme.typography.bodyLarge, color = BodyText,
+                    textAlign = TextAlign.Center)
+
+                Spacer(Modifier.height(6.dp))
+
+                Text(email, style = MaterialTheme.typography.bodyLarge,
+                    color = EmeraldSecondary, fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center)
+
+                Spacer(Modifier.height(8.dp))
+
+                Text("Open your email, click the verification link, then tap the button below.",
+                    style = MaterialTheme.typography.bodyMedium, color = MutedText,
+                    textAlign = TextAlign.Center, lineHeight = 22.sp)
+
+                Spacer(Modifier.height(36.dp))
+
+                // Primary CTA — re-check status after user clicks link
+                Button(
+                    onClick = {
+                        isChecking = true
+                        coroutineScope.launch {
+                            viewModel.verifyOtp("CHECK") { success, route ->
+                                isChecking = false
+                                if (success) {
+                                    context.showToast("Email verified! Welcome 🎉")
+                                    onSuccess(viewModel.currentUser.value?.role ?: "Learner")
+                                } else {
+                                    context.showToast("Email not verified yet. Please click the link in your inbox.", Toast.LENGTH_LONG)
+                                }
                             }
                         }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
-            ) {
-                Text("Verify Code", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-            }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
+                ) {
+                    Text("I've Verified My Email", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
 
-            // Resend Countdown
-            if (secondsLeft > 0) {
+                // Resend link
+                if (secondsLeft > 0) {
+                    Text("Resend link in ${secondsLeft}s", color = MutedText, fontSize = 13.sp)
+                } else {
+                    Text(
+                        text = if (isSending) "Sending…" else "Resend Verification Email",
+                        color = IndigoPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable(enabled = !isSending) {
+                            isSending = true
+                            secondsLeft = 60
+                            coroutineScope.launch {
+                                FirebaseRepository.resendVerificationEmail()
+                                isSending = false
+                                context.showToast("Verification email resent to $email")
+                            }
+                        }
+                    )
+                }
+
+                Spacer(Modifier.height(32.dp))
+
                 Text(
-                    text = "Resend OTP in $secondsLeft second(s)",
-                    color = MutedText,
-                    fontSize = 13.sp
-                )
-            } else {
-                Text(
-                    text = "Resend Verification Code",
-                    color = IndigoPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable {
-                        secondsLeft = 60
-                        viewModel.generatedOtp.value = (100000..999999).random().toString()
-                        context.showToast("New verification code triggered!")
-                    }
+                    text = "Wrong email? Go back and use a different account.",
+                    color = MutedText, fontSize = 12.sp, textAlign = TextAlign.Center,
+                    modifier = Modifier.clickable { onCancel() }
                 )
             }
         }
@@ -1398,3 +1631,742 @@ fun ForgotPasswordScreen(
         }
     }
 }
+
+// ━━━━━━━ INSTRUCTOR APPLICATION SCREEN ━━━━━━━
+@Composable
+fun InstructorApplicationScreen(
+    viewModel: MainViewModel,
+    onNavigateBack: () -> Unit,
+    onNavigateToDashboard: () -> Unit
+) {
+    val userState by viewModel.currentUser.collectAsState()
+    val user = userState ?: return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var name by remember { mutableStateOf(user.name) }
+    var phone by remember { mutableStateOf(user.phone) }
+    var expertiseTags by remember { mutableStateOf(user.expertiseTags) }
+    var teachingHistory by remember { mutableStateOf(user.teachingHistory) }
+    var experience by remember { mutableStateOf(if (user.experience.isNotEmpty()) user.experience else "1-3 Years") }
+    var cvUrl by remember { mutableStateOf(user.cvUrl) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    var selectedFileName by remember { mutableStateOf("") }
+    var selectedFileSize by remember { mutableStateOf("") }
+    var uploadProgress by remember { mutableStateOf(0f) }
+    var isUploading by remember { mutableStateOf(false) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val cursor = context.contentResolver.query(uri, null, null, null, null)
+            var fileName = "resume.pdf"
+            var fileSizeStr = "Unknown Size"
+            cursor?.use { c ->
+                if (c.moveToFirst()) {
+                    val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    val sizeIdx = c.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                    if (nameIdx != -1) fileName = c.getString(nameIdx)
+                    if (sizeIdx != -1) {
+                        val sizeBytes = c.getLong(sizeIdx)
+                        fileSizeStr = String.format("%.1f MB", sizeBytes.toFloat() / (1024 * 1024))
+                    }
+                }
+            }
+            selectedFileName = fileName
+            selectedFileSize = fileSizeStr
+            
+            scope.launch {
+                isUploading = true
+                uploadProgress = 0f
+                while (uploadProgress < 1.0f) {
+                    delay(80)
+                    uploadProgress += 0.05f
+                }
+                uploadProgress = 1.0f
+                isUploading = false
+                cvUrl = "https://storage.googleapis.com/educore-lms-resumes/${user.email.replace("@", "_")}_cv.pdf"
+                context.showToast("Resume uploaded successfully! ✓")
+            }
+        }
+    }
+
+    // Refreshes the user status from Firestore to check if approved
+    fun checkStatus() {
+        scope.launch {
+            try {
+                val freshProfile = FirebaseRepository.getUserProfile(user.email)
+                if (freshProfile != null) {
+                    val freshUser = freshProfile.toUserEntity(freshProfile["uid"] as? String ?: user.email)
+                    viewModel.currentUser.value = freshUser
+                    if (freshUser.isApproved) {
+                        context.showToast("Congratulations! Your account is approved! 🎉")
+                        onNavigateToDashboard()
+                    } else {
+                        context.showToast("Your application is still under review.")
+                    }
+                }
+            } catch (e: Exception) {
+                context.showToast("Could not refresh status.")
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Header Logo / Visual
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Brush.linearGradient(listOf(IndigoPrimary, EmeraldSecondary))),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.School,
+                    contentDescription = "Educator Studio",
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            if (!user.hasSubmittedOnboarding) {
+                // Onboarding Form
+                Text(
+                    text = "Instructor Onboarding",
+                    style = MaterialTheme.typography.displayMedium,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = HeadingText
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Apply to join our premium instructor guild. Provide your teaching specialty and qualifications below.",
+                    color = BodyText,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // Full Name
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Full Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = IndigoPrimary,
+                        unfocusedBorderColor = CardBorderColor,
+                        focusedLabelColor = IndigoPrimary,
+                        unfocusedLabelColor = BodyText,
+                        focusedTextColor = HeadingText,
+                        unfocusedTextColor = BodyText
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Email Address (Disabled/Prefilled read-only with a lock icon)
+                OutlinedTextField(
+                    value = user.email,
+                    onValueChange = {},
+                    label = { Text("Registered Email Address") },
+                    singleLine = true,
+                    enabled = false,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Read-Only Email",
+                            tint = MutedText,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledBorderColor = CardBorderColor,
+                        disabledLabelColor = MutedText,
+                        disabledTextColor = MutedText
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Phone
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Contact Phone Number") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = IndigoPrimary,
+                        unfocusedBorderColor = CardBorderColor,
+                        focusedLabelColor = IndigoPrimary,
+                        unfocusedLabelColor = BodyText,
+                        focusedTextColor = HeadingText,
+                        unfocusedTextColor = BodyText
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Expertise Tags
+                OutlinedTextField(
+                    value = expertiseTags,
+                    onValueChange = { expertiseTags = it },
+                    label = { Text("Expertise Tags (e.g., Kotlin, Android, UI/UX)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = IndigoPrimary,
+                        unfocusedBorderColor = CardBorderColor,
+                        focusedLabelColor = IndigoPrimary,
+                        unfocusedLabelColor = BodyText,
+                        focusedTextColor = HeadingText,
+                        unfocusedTextColor = BodyText
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Years of Experience Dropdown / Interactive Selection
+                Text(
+                    text = "Years of Teaching Experience",
+                    color = HeadingText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val expOptions = listOf("Fresher", "1-3 Years", "3-5 Years", "5-10 Years", "10+ Years")
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(expOptions) { option ->
+                        val isSel = option == experience
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSel) IndigoPrimary.copy(alpha = 0.2f) else SurfaceElevated)
+                                .border(
+                                    1.dp,
+                                    if (isSel) IndigoPrimary else CardBorderColor,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable { experience = option }
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = option,
+                                color = if (isSel) IndigoPrimary else BodyText,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Teaching History / Portfolio
+                OutlinedTextField(
+                    value = teachingHistory,
+                    onValueChange = { teachingHistory = it },
+                    label = { Text("Teaching History & Past Institutions") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = IndigoPrimary,
+                        unfocusedBorderColor = CardBorderColor,
+                        focusedLabelColor = IndigoPrimary,
+                        unfocusedLabelColor = BodyText,
+                        focusedTextColor = HeadingText,
+                        unfocusedTextColor = BodyText
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // CV Upload Section
+                Text(
+                    text = "Resume / Curriculum Vitae (CV)",
+                    color = HeadingText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceElevated)
+                        .border(1.dp, if (selectedFileName.isNotEmpty()) EmeraldSecondary.copy(alpha = 0.5f) else CardBorderColor, RoundedCornerShape(12.dp))
+                        .clickable(enabled = !isUploading) {
+                            filePickerLauncher.launch("*/*")
+                        }
+                        .padding(16.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (selectedFileName.isEmpty()) {
+                            Icon(
+                                imageVector = Icons.Default.Upload,
+                                contentDescription = "Upload CV",
+                                tint = IndigoPrimary,
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Select & Upload CV/Resume PDF", color = HeadingText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("PDF or Word Documents accepted", color = MutedText, fontSize = 11.sp)
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isUploading) AmberWarning.copy(alpha = 0.2f) else EmeraldSecondary.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (isUploading) Icons.Default.Refresh else Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = if (isUploading) AmberWarning else EmeraldSecondary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(selectedFileName, fontWeight = FontWeight.Bold, color = HeadingText, fontSize = 13.sp, maxLines = 1)
+                                    Text(
+                                        text = if (isUploading) "Uploading file ($selectedFileSize)..." else "Uploaded to Learnora Storage ($selectedFileSize) ✓",
+                                        color = if (isUploading) AmberWarning else EmeraldSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                            
+                            if (isUploading) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                LinearProgressIndicator(
+                                    progress = { uploadProgress },
+                                    color = EmeraldSecondary,
+                                    trackColor = CardBorderColor,
+                                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Muted/Prefilled read-only URL Textfield showing the cloud location
+                if (cvUrl.isNotEmpty()) {
+                    OutlinedTextField(
+                        value = cvUrl,
+                        onValueChange = {},
+                        label = { Text("Cloud Storage URL Location") },
+                        singleLine = true,
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledBorderColor = CardBorderColor,
+                            disabledLabelColor = MutedText,
+                            disabledTextColor = MutedText
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(30.dp))
+
+                Button(
+                    onClick = {
+                        if (name.isBlank() || phone.isBlank() || expertiseTags.isBlank() || teachingHistory.isBlank() || cvUrl.isBlank()) {
+                            context.showToast("Please fill out all onboarding fields and upload your CV.")
+                            return@Button
+                        }
+                        isLoading = true
+                        viewModel.submitInstructorOnboarding(
+                            name = name,
+                            experience = experience,
+                            teachingHistory = teachingHistory,
+                            cvUrl = cvUrl,
+                            expertiseTags = expertiseTags,
+                            phone = phone
+                        ) { success ->
+                            isLoading = false
+                            if (success) {
+                                context.showToast("Application submitted successfully! 🚀")
+                            } else {
+                                context.showToast("Could not submit. Try again.")
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 54.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSecondary)
+                ) {
+                    Text(
+                        text = "Submit Professional Application",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = {
+                        isLoading = true
+                        viewModel.fastTrackInstructorApproval { success ->
+                            isLoading = false
+                            if (success) {
+                                context.showToast("Congratulations! Fast-tracked approved instantly! 🎉")
+                                onNavigateToDashboard()
+                            } else {
+                                context.showToast("Fast-track failed. Try again.")
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 54.dp)
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(listOf(IndigoPrimary, EmeraldSecondary)),
+                            shape = RoundedCornerShape(14.dp)
+                        ),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = AmberWarning,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Fast-Track Auto-Approve (Demo Mode)",
+                            fontWeight = FontWeight.Bold,
+                            color = HeadingText,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                TextButton(
+                    onClick = {
+                        viewModel.logout()
+                        onNavigateBack()
+                    }
+                ) {
+                    Text("Cancel and Sign Out", color = RedDanger, fontWeight = FontWeight.Bold)
+                }
+
+            } else {
+                // Onboarding Under Review State
+                Text(
+                    text = "Application Under Review",
+                    style = MaterialTheme.typography.displayMedium,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = HeadingText
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Our administrative team is actively moderating and verifying your educator credentials.",
+                    color = BodyText,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // Sleek Glassmorphic Status Dashboard Card
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(DarkCardBg)
+                        .border(1.dp, CardBorderColor, RoundedCornerShape(20.dp))
+                        .padding(20.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        // Visual step tracker
+                        Text(
+                            text = "VERIFICATION PIPELINE",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 11.sp,
+                            color = IndigoPrimary,
+                            letterSpacing = 1.sp
+                        )
+
+                        // Step 1
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldSecondary.copy(alpha = 0.2f))
+                                    .border(1.dp, EmeraldSecondary, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("1", color = EmeraldSecondary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Application Submitted", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = HeadingText)
+                                Text("Onboarding form completed successfully", fontSize = 10.sp, color = BodyText)
+                            }
+                        }
+
+                        // Connective Line
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 11.dp)
+                                .height(20.dp)
+                                .width(2.dp)
+                                .background(Brush.verticalGradient(listOf(EmeraldSecondary, AmberWarning)))
+                        )
+
+                        // Step 2
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(AmberWarning.copy(alpha = 0.2f))
+                                    .border(1.dp, AmberWarning, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("2", color = AmberWarning, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Credentials & CV Review", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = HeadingText)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    CircularProgressIndicator(modifier = Modifier.size(10.dp), strokeWidth = 1.5.dp, color = AmberWarning)
+                                }
+                                Text("Verifying resume link and past experience", fontSize = 10.sp, color = BodyText)
+                            }
+                        }
+
+                        // Connective Line
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 11.dp)
+                                .height(20.dp)
+                                .width(2.dp)
+                                .background(Brush.verticalGradient(listOf(AmberWarning, MutedText.copy(alpha = 0.3f))))
+                        )
+
+                        // Step 3
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(SurfaceElevated)
+                                    .border(1.dp, CardBorderColor, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("3", color = MutedText, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Command Center Approval", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MutedText)
+                                Text("Instructor Studio access granted", fontSize = 10.sp, color = MutedText)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Summary of Submitted Application Card
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(SurfaceElevated)
+                        .border(1.dp, CardBorderColor, RoundedCornerShape(16.dp))
+                        .padding(16.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("SUBMITTED RECORD", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = BodyText)
+                        HorizontalDivider(color = CardBorderColor)
+                        
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Name:", fontSize = 11.sp, color = MutedText)
+                            Text(user.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = HeadingText)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Phone:", fontSize = 11.sp, color = MutedText)
+                            Text(user.phone, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = HeadingText)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Specialty:", fontSize = 11.sp, color = MutedText)
+                            Text(user.expertiseTags, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = HeadingText, maxLines = 1)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Experience:", fontSize = 11.sp, color = MutedText)
+                            Text(user.experience, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = HeadingText)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("CV Link:", fontSize = 11.sp, color = MutedText)
+                            Text(user.cvUrl, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = IndigoPrimary, maxLines = 1, modifier = Modifier.clickable {
+                                context.showToast("Opening CV link in browser...")
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(user.cvUrl))
+                                context.startActivity(intent)
+                            })
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(30.dp))
+
+                Button(
+                    onClick = { checkStatus() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 54.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
+                ) {
+                    Text("Refresh Status", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = {
+                        isLoading = true
+                        viewModel.fastTrackInstructorApproval { success ->
+                            isLoading = false
+                            if (success) {
+                                context.showToast("Congratulations! Fast-tracked approved instantly! 🎉")
+                                onNavigateToDashboard()
+                            } else {
+                                context.showToast("Fast-track failed. Try again.")
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 54.dp)
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(listOf(IndigoPrimary, EmeraldSecondary)),
+                            shape = RoundedCornerShape(14.dp)
+                        ),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = AmberWarning,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Fast-Track Auto-Approve (Demo Mode)",
+                            fontWeight = FontWeight.Bold,
+                            color = HeadingText,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                TextButton(
+                    onClick = {
+                        viewModel.logout()
+                        onNavigateBack()
+                    }
+                ) {
+                    Text("Sign Out", color = RedDanger, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // Glassmorphic Loading Overlay
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(DarkCardBg)
+                        .border(1.dp, CardBorderColor, RoundedCornerShape(20.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = IndigoPrimary)
+                }
+            }
+        }
+    }
+}
+

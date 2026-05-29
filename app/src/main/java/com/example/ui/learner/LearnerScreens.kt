@@ -25,12 +25,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.*
@@ -40,7 +42,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
-// ━━━━━━━ SECTIONS ROOT CONTROLLER ━━━━━━━
+// â”â”â”â”â”â”â” SECTIONS ROOT CONTROLLER â”â”â”â”â”â”â”
 @Composable
 fun LearnerMainScreen(
     viewModel: MainViewModel,
@@ -50,55 +52,87 @@ fun LearnerMainScreen(
     onLogout: () -> Unit
 ) {
     var activeTab by remember { mutableStateOf("Home") }
-    
     val currentUserState by viewModel.currentUser.collectAsState()
     val user = currentUserState ?: return
 
     Scaffold(
         containerColor = DarkBg,
         bottomBar = {
-            NavigationBar(
-                containerColor = DarkCardBg,
-                tonalElevation = 8.dp,
-                modifier = Modifier.navigationBarsPadding()
-            ) {
-                val tabs = listOf(
-                    NavigationTabItem("Home", Icons.Default.Home),
-                    NavigationTabItem("My Courses", Icons.Default.Book),
-                    NavigationTabItem("Search", Icons.Default.Search),
-                    NavigationTabItem("Path", Icons.Default.AltRoute),
-                    NavigationTabItem("Profile", Icons.Default.Person)
-                )
-
-                tabs.forEach { tab ->
-                    NavigationBarItem(
-                        selected = activeTab == tab.name,
-                        onClick = { activeTab = tab.name },
-                        icon = { Icon(tab.icon, contentDescription = tab.name) },
-                        label = { Text(tab.name, fontSize = 11.sp) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color.White,
-                            selectedTextColor = IndigoPrimary,
-                            unselectedIconColor = MutedText,
-                            unselectedTextColor = MutedText,
-                            indicatorColor = IndigoPrimary
-                        )
+            // â”€â”€ Premium Bottom Nav â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            Box(Modifier.fillMaxWidth().background(DarkCardBg).navigationBarsPadding()) {
+                // Top gradient accent line
+                Box(
+                    Modifier.fillMaxWidth().height(1.dp).background(
+                        Brush.horizontalGradient(listOf(Color.Transparent, IndigoPrimary, EmeraldSecondary, Color.Transparent))
                     )
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    data class NavTab(val id: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+                    val tabs = listOf(
+                        NavTab("Home",       "Home",      Icons.Default.Home),
+                        NavTab("My Courses", "My Learn",  Icons.Default.MenuBook),
+                        NavTab("Search",     "Explore",   Icons.Default.Explore),
+                        NavTab("Path",       "Path",      Icons.Default.Timeline),
+                        NavTab("Profile",    "Me",        Icons.Default.Person)
+                    )
+                    tabs.forEach { tab ->
+                        val selected = activeTab == tab.id
+                        val scale by animateFloatAsState(
+                            if (selected) 1.1f else 1f,
+                            spring(Spring.DampingRatioMediumBouncy),
+                            label = "navScale"
+                        )
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .graphicsLayer { scaleX = scale; scaleY = scale }
+                                .clickable(
+                                    indication = null,
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                                ) { activeTab = tab.id },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(if (selected) 42.dp else 36.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (selected)
+                                            Brush.linearGradient(listOf(IndigoPrimary, Color(0xFF8B5CF6)))
+                                        else
+                                            Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    tab.icon, null,
+                                    tint = if (selected) Color.White else MutedText,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                tab.label,
+                                fontSize = 10.sp,
+                                color = if (selected) IndigoPrimary else MutedText,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
                 }
             }
         }
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
+        Box(Modifier.fillMaxSize().padding(innerPadding)) {
             when (activeTab) {
-                "Home" -> LearnerHomeScreen(viewModel, user, onNavigateToCourseDetail, onNavigateToUpgrade)
+                "Home"       -> LearnerHomeScreen(viewModel, user, onNavigateToCourseDetail, onNavigateToUpgrade)
                 "My Courses" -> LearnerMyCoursesScreen(viewModel, user, onNavigateToCourseDetail, onNavigateToCoursePlayer)
-                "Search" -> LearnerSearchScreen(viewModel, onNavigateToCourseDetail)
-                "Path" -> LearnerPathGamificationScreen(viewModel, user)
-                "Profile" -> LearnerProfileScreen(viewModel, user, onNavigateToUpgrade, onLogout)
+                "Search"     -> LearnerSearchScreen(viewModel, onNavigateToCourseDetail)
+                "Path"       -> LearnerPathGamificationScreen(viewModel, user)
+                "Profile"    -> LearnerProfileScreen(viewModel, user, onNavigateToUpgrade, onLogout)
             }
         }
     }
@@ -106,7 +140,7 @@ fun LearnerMainScreen(
 
 data class NavigationTabItem(val name: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
-// ━━━━━━━ TAB 1: HOME FEED ━━━━━━━
+// â”â”â”â”â”â”â” TAB 1: HOME FEED â”â”â”â”â”â”â”
 @Composable
 fun LearnerHomeScreen(
     viewModel: MainViewModel,
@@ -117,309 +151,224 @@ fun LearnerHomeScreen(
     val context = LocalContext.current
     val courses by viewModel.allCoursesList.collectAsState()
     val enrollments by viewModel.userEnrollments.collectAsState()
+    val notifications by viewModel.userNotifications.collectAsState()
+    val unread = notifications.count { !it.isRead }
 
-    val recommendedCourses = remember(courses) {
-        courses.filter { it.status == "Approved" }
+    val published = remember(courses) { courses.filter { it.status == "Published" || it.status == "Approved" } }
+    val featured  = remember(published) { published.filter { it.isFeatured }.take(5).ifEmpty { published.take(5) } }
+    val inProgress = remember(enrollments, published) {
+        enrollments.filter { it.progress in 1..99 }
+            .mapNotNull { e -> published.find { it.id == e.courseId }?.let { c -> Pair(e, c) } }
     }
 
-    val continueLearningEnrollment = remember(enrollments, recommendedCourses) {
-        enrollments.firstOrNull { it.progress < 100 }?.let { enrollment ->
-            recommendedCourses.firstOrNull { it.id == enrollment.courseId }?.let { course ->
-                Pair(enrollment, course)
-            }
-        }
-    }
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val greeting = when (hour) { in 5..11 -> "Good Morning"; in 12..16 -> "Good Afternoon"; else -> "Good Evening" }
+    val firstName = user.name.split(" ").first()
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 16.dp)
     ) {
+        // â”€â”€ Gradient Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         item {
-            Spacer(modifier = Modifier.height(16.dp))
-            // Top Bar Greeting
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Good Morning,",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = BodyText
-                    )
-                    Text(
-                        text = user.name,
-                        style = MaterialTheme.typography.displayMedium,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(45.dp)
-                        .clip(CircleShape)
-                        .background(DarkCardBg)
-                        .border(1.dp, CardBorderColor, CircleShape)
-                        .clickable {
-                            context.showToast("No unread alerts.")
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = "Alerts",
-                        tint = IndigoPrimary
-                    )
-                }
-            }
-        }
-
-        // Weekly Streak Card
-        item {
-            Card(
-                modifier = Modifier
+            Box(
+                Modifier
                     .fillMaxWidth()
-                    .border(1.dp, CardBorderColor, RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCardBg)
+                    .background(Brush.verticalGradient(listOf(Color(0xFF1A1A2E), DarkBg)))
+                    .padding(start = 20.dp, end = 20.dp, top = 52.dp, bottom = 20.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Circular progress ring
-                    Box(
-                        modifier = Modifier.size(64.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            drawCircle(
-                                color = CardBorderColor,
-                                style = Stroke(width = 6.dp.toPx())
-                            )
-                            drawArc(
-                                color = EmeraldSecondary,
-                                startAngle = -90f,
-                                sweepAngle = (4f / 7f) * 360f,
-                                useCenter = false,
-                                style = Stroke(width = 6.dp.toPx())
-                            )
+                // Ambient glow orb
+                Box(
+                    Modifier
+                        .size(180.dp)
+                        .align(Alignment.TopEnd)
+                        .offset(x = 50.dp, y = (-20).dp)
+                        .drawBehind {
+                            drawCircle(Brush.radialGradient(listOf(IndigoGlow, Color.Transparent)))
                         }
-                        Text(
-                            text = "4/7",
-                            fontWeight = FontWeight.Bold,
-                            color = HeadingText,
-                            fontSize = 14.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(20.dp))
-
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "${user.streakCount} Day Streak!",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = HeadingText,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Icon(
-                                imageVector = Icons.Default.LocalFireDepartment,
-                                contentDescription = "Fire Core",
-                                tint = AmberWarning,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Keep coding daily to unlock your 7-Day Streak Badge!",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = BodyText,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            }
-        }
-
-        // Continue Learning Card
-        continueLearningEnrollment?.let { (enrollment, course) ->
-            item {
-                Text(
-                    text = "Continue Learning",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, CardBorderColor, RoundedCornerShape(16.dp)),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkCardBg)
-                ) {
-                    val progressValue = enrollment.progress / 100f
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.Top) {
-                            Box(
-                                modifier = Modifier
-                                    .size(70.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(IndigoGlow),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Laptop, contentDescription = null, tint = IndigoPrimary, modifier = Modifier.size(36.dp))
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = course.title,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Instructor: ${course.instructorName}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontSize = 12.sp,
-                                    color = BodyText
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = "${enrollment.progress}% complete", fontSize = 12.sp, color = BodyText)
-                            Text(text = "Remaining: ${100 - enrollment.progress}%", fontSize = 11.sp, color = MutedText)
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        LinearProgressIndicator(
-                            progress = { progressValue },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = IndigoPrimary,
-                            trackColor = CardBorderColor
-                        )
-                    }
-                }
-            }
-        }
-
-        // Recommended For You (Horizontal LazyRow)
-        item {
-            Text(
-                text = "Recommended For You",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(recommendedCourses) { course ->
-                    val isEnrolled = enrollments.any { it.courseId == course.id }
-                    Card(
-                        modifier = Modifier
-                            .width(260.dp)
-                            .clickable { onNavigateToCourseDetail(course.id) }
-                            .border(1.dp, CardBorderColor, RoundedCornerShape(16.dp)),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = DarkCardBg)
+                Column {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            // Thumbnail Representation
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(120.dp)
-                                    .background(
-                                        when (course.category) {
-                                            "Coding" -> Brush.verticalGradient(listOf(IndigoPrimary, DarkCardBg))
-                                            "Design" -> Brush.verticalGradient(listOf(EmeraldSecondary, DarkCardBg))
-                                            else -> Brush.verticalGradient(listOf(AmberWarning, DarkCardBg))
-                                        }
-                                    )
-                                    .padding(12.dp),
-                                contentAlignment = Alignment.BottomStart
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(50.dp))
-                                        .background(DarkCardBg)
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = course.category,
-                                        fontSize = 10.sp,
-                                        color = HeadingText,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            }
-
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = course.title,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    fontSize = 14.sp
-                                )
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Star, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(text = "${course.rating}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = HeadingText)
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(text = "(${course.enrolledCount} enrolled)", fontSize = 11.sp, color = BodyText)
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
+                            Text("$greeting ðŸ‘‹", fontSize = 13.sp, color = BodyText)
+                            Text(
+                                firstName,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 28.sp,
+                                color = HeadingText
+                            )
+                            if (user.subscription == "Pro") {
+                                Spacer(Modifier.height(6.dp))
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    Modifier
+                                        .clip(RoundedCornerShape(50.dp))
+                                        .background(AmberWarning.copy(0.15f))
+                                        .border(1.dp, AmberWarning.copy(0.4f), RoundedCornerShape(50.dp))
+                                        .padding(horizontal = 10.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row {
-                                        Text(
-                                            text = if (course.price == 0) "Free" else "₹${course.price}",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp,
-                                            color = if (course.price == 0) EmeraldSecondary else HeadingText
-                                        )
-                                    }
+                                    Icon(Icons.Default.Star, null, tint = AmberWarning, modifier = Modifier.size(12.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("PRO MEMBER", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AmberWarning)
+                                }
+                            }
+                        }
+                        Box(
+                            Modifier
+                                .size(46.dp)
+                                .clip(CircleShape)
+                                .background(SurfaceElevated)
+                                .border(1.dp, CardBorderColor, CircleShape)
+                                .clickable { context.showToast(if (unread > 0) "$unread new notifications" else "No new alerts") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Notifications, null, tint = if (unread > 0) IndigoPrimary else MutedText, modifier = Modifier.size(22.dp))
+                            if (unread > 0) {
+                                Box(
+                                    Modifier
+                                        .size(8.dp).clip(CircleShape).background(RedDanger)
+                                        .align(Alignment.TopEnd).offset(x = (-2).dp, y = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    // XP + Streak metrics
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MetricChip("âš¡ ${user.xp} XP", IndigoPrimary)
+                        MetricChip("ðŸ”¥ ${user.streakCount} Day Streak", AmberWarning)
+                        if (user.badges.isNotEmpty()) MetricChip("ðŸ† ${user.badges.split(",").size} Badges", EmeraldSecondary)
+                    }
+                }
+            }
+        }
 
-                                    // Locked indicators for free plan premium courses
-                                    if (user.subscription == "Free" && course.price > 0) {
-                                        Icon(imageVector = Icons.Default.Lock, contentDescription = "Locked Premium", tint = AmberWarning, modifier = Modifier.size(16.dp))
-                                    } else if (isEnrolled) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(50.dp))
-                                                .background(EmeraldSecondary.copy(alpha = 0.2f))
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                                        ) {
-                                            Text("Enrolled", color = EmeraldSecondary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        // â”€â”€ Continue Learning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if (inProgress.isNotEmpty()) {
+            item {
+                Column(Modifier.padding(horizontal = 20.dp)) {
+                    Spacer(Modifier.height(20.dp))
+                    SectionHeaderRow("Continue Learning", "Pick up where you left off")
+                    Spacer(Modifier.height(12.dp))
+                    val (enroll, course) = inProgress.first()
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Brush.linearGradient(listOf(Color(0xFF1E1B4B), Color(0xFF131324))))
+                            .border(1.dp, IndigoPrimary.copy(0.35f), RoundedCornerShape(20.dp))
+                            .clickable { onNavigateToCourseDetail(course.id) }
+                            .padding(16.dp)
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    Modifier.size(54.dp).clip(RoundedCornerShape(14.dp))
+                                        .background(IndigoPrimary.copy(0.2f))
+                                        .border(1.dp, IndigoPrimary.copy(0.4f), RoundedCornerShape(14.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.PlayCircle, null, tint = IndigoPrimary, modifier = Modifier.size(28.dp))
+                                }
+                                Spacer(Modifier.width(14.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(course.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = HeadingText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(course.instructorName, fontSize = 12.sp, color = BodyText)
+                                }
+                                Box(
+                                    Modifier.size(36.dp).clip(CircleShape).background(IndigoPrimary),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.ArrowForward, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("${enroll.progress}% complete", fontSize = 12.sp, color = IndigoPrimary, fontWeight = FontWeight.SemiBold)
+                                Text("${100 - enroll.progress}% remaining", fontSize = 11.sp, color = MutedText)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Box(
+                                Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(CardBorderColor)
+                            ) {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth(enroll.progress / 100f)
+                                        .fillMaxHeight()
+                                        .background(Brush.horizontalGradient(listOf(IndigoPrimary, EmeraldSecondary)))
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // â”€â”€ Featured Courses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if (featured.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(24.dp))
+                SectionHeaderRow("Featured Courses", "Handpicked for you", Modifier.padding(horizontal = 20.dp))
+                Spacer(Modifier.height(12.dp))
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items(featured) { course ->
+                        val catColor = when (course.category.lowercase()) {
+                            "coding", "python", "development" -> IndigoPrimary
+                            "design", "ui", "ux" -> EmeraldSecondary
+                            "business", "marketing" -> AmberWarning
+                            else -> Color(0xFF8B5CF6)
+                        }
+                        val isEnrolled = enrollments.any { it.courseId == course.id }
+                        Box(
+                            Modifier
+                                .width(220.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(DarkCardBg)
+                                .border(1.dp, CardBorderColor, RoundedCornerShape(18.dp))
+                                .clickable { onNavigateToCourseDetail(course.id) }
+                        ) {
+                            Column {
+                                // Thumbnail band
+                                Box(
+                                    Modifier.fillMaxWidth().height(110.dp)
+                                        .background(Brush.verticalGradient(listOf(catColor.copy(0.75f), DarkCardBg))),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.PlayCircleFilled, null, tint = Color.White.copy(0.5f), modifier = Modifier.size(44.dp))
+                                    if (isEnrolled) {
+                                        Box(Modifier.align(Alignment.TopStart).padding(8.dp).clip(RoundedCornerShape(6.dp)).background(EmeraldSecondary).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                                            Text("Enrolled", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                         }
                                     }
+                                }
+                                Column(Modifier.padding(12.dp)) {
+                                    Box(Modifier.clip(RoundedCornerShape(50.dp)).background(catColor.copy(0.15f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                                        Text(course.category, fontSize = 9.sp, color = catColor, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(course.title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = HeadingText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Star, null, tint = AmberWarning, modifier = Modifier.size(12.dp))
+                                        Text(" ${course.rating}", fontSize = 11.sp, color = HeadingText, fontWeight = FontWeight.Bold)
+                                        Text("  â€¢  ${course.enrolledCount} enrolled", fontSize = 10.sp, color = BodyText)
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        if (course.price == 0) "Free" else "â‚¹${course.price}",
+                                        fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                                        color = if (course.price == 0) EmeraldSecondary else HeadingText
+                                    )
                                 }
                             }
                         }
@@ -428,74 +377,120 @@ fun LearnerHomeScreen(
             }
         }
 
-        // Top Instructors
+        // â”€â”€ Category Pills â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         item {
-            Text(
-                text = "Top Instructors",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
+            Spacer(Modifier.height(24.dp))
+            SectionHeaderRow("Browse Categories", null, Modifier.padding(horizontal = 20.dp))
+            Spacer(Modifier.height(12.dp))
+            val cats = listOf(
+                Triple("Coding",   Icons.Default.Code,            IndigoPrimary),
+                Triple("Design",   Icons.Default.Brush,           EmeraldSecondary),
+                Triple("Business", Icons.Default.BusinessCenter,  AmberWarning),
+                Triple("Data",     Icons.Default.BarChart,        Color(0xFF8B5CF6)),
+                Triple("AI/ML",    Icons.Default.SmartToy,        Color(0xFFEC4899)),
+                Triple("DevOps",   Icons.Default.Cloud,           Color(0xFF06B6D4))
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    InstructorRowItem("Dev Kar", "24.5k Students", "https://example.com/avatar1")
-                }
-                item {
-                    InstructorRowItem("Sarah Hughes", "18.3k Students", "https://example.com/avatar2")
-                }
-                item {
-                    InstructorRowItem("Dr. Ramesh Sen", "9.2k Students", "https://example.com/avatar3")
+            LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(cats) { (name, icon, color) ->
+                    Column(
+                        Modifier
+                            .width(74.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(color.copy(0.1f))
+                            .border(1.dp, color.copy(0.25f), RoundedCornerShape(14.dp))
+                            .clickable { context.showToast("Browsing: $name") }
+                            .padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.height(6.dp))
+                        Text(name, fontSize = 10.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                    }
                 }
             }
         }
 
-        // Floating Pro banner at bottom for free status users
-        if (user.subscription == "Free") {
+        // â”€â”€ All Published Courses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if (published.isNotEmpty()) {
             item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onNavigateToUpgrade() }
-                        .border(
-                            width = 1.dp,
-                            brush = Brush.linearGradient(listOf(IndigoPrimary, EmeraldSecondary)),
-                            shape = RoundedCornerShape(16.dp)
-                        ),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkCardBg)
+                Spacer(Modifier.height(24.dp))
+                SectionHeaderRow("All Courses", "${published.size} available", Modifier.padding(horizontal = 20.dp))
+                Spacer(Modifier.height(12.dp))
+            }
+            items(published.take(8)) { course ->
+                val catColor = when (course.category.lowercase()) { "coding", "python", "development" -> IndigoPrimary; "design", "ui", "ux" -> EmeraldSecondary; else -> AmberWarning }
+                val isEnrolled = enrollments.any { it.courseId == course.id }
+                Row(
+                    Modifier
+                        .padding(horizontal = 20.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(DarkCardBg)
+                        .border(1.dp, CardBorderColor, RoundedCornerShape(14.dp))
+                        .clickable { onNavigateToCourseDetail(course.id) }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Box(
+                        Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(catColor.copy(0.15f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Upgrade to Pro Version",
-                                fontWeight = FontWeight.Bold,
-                                color = HeadingText,
-                                fontSize = 15.sp
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Unlock premium paths & certified tokens for only ₹499/mo",
-                                color = BodyText,
-                                fontSize = 11.sp
-                            )
-                        }
-                        Icon(imageVector = Icons.Default.ArrowUpward, contentDescription = "Upgrade", tint = EmeraldSecondary, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.MenuBook, null, tint = catColor, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(course.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = HeadingText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(3.dp))
+                        Text("${course.instructorName}  â€¢  â­ ${course.rating}", fontSize = 11.sp, color = BodyText)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(if (course.price == 0) "Free" else "â‚¹${course.price}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (course.price == 0) EmeraldSecondary else HeadingText)
+                        if (isEnrolled) Text("Enrolled âœ“", fontSize = 9.sp, color = EmeraldSecondary, fontWeight = FontWeight.Bold)
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-        } else {
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
+
+        // â”€â”€ Pro Upgrade Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if (user.subscription != "Pro") {
+            item {
+                Spacer(Modifier.height(20.dp))
+                Box(
+                    Modifier
+                        .padding(horizontal = 20.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFF10B981))))
+                        .clickable { onNavigateToUpgrade() }
+                        .padding(20.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Unlock Pro Access ðŸš€", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                            Spacer(Modifier.height(4.dp))
+                            Text("All premium courses + certificates\nfor just â‚¹499/month", fontSize = 12.sp, color = Color.White.copy(0.85f), lineHeight = 18.sp)
+                        }
+                        Icon(Icons.Default.ArrowForward, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricChip(text: String, color: Color) {
+    Box(
+        Modifier.clip(RoundedCornerShape(50.dp)).background(color.copy(0.12f)).border(1.dp, color.copy(0.25f), RoundedCornerShape(50.dp)).padding(horizontal = 12.dp, vertical = 5.dp)
+    ) { Text(text, fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold) }
+}
+
+@Composable
+private fun SectionHeaderRow(title: String, subtitle: String?, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = HeadingText)
+        if (subtitle != null) Text(subtitle, fontSize = 12.sp, color = BodyText)
     }
 }
 
@@ -528,7 +523,7 @@ fun InstructorRowItem(name: String, students: String, avatarUrl: String) {
     }
 }
 
-// ━━━━━━━ SCREEN 2: COURSE DETAIL PAGE ━━━━━━━
+// â”â”â”â”â”â”â” SCREEN 2: COURSE DETAIL PAGE â”â”â”â”â”â”â”
 @Composable
 fun CourseDetailScreen(
     courseId: Int,
@@ -583,7 +578,7 @@ fun CourseDetailScreen(
                 Column {
                     Text(text = "Total Price", fontSize = 11.sp, color = BodyText)
                     Text(
-                        text = if (course.price == 0) "Free" else "₹${course.price}",
+                        text = if (course.price == 0) "Free" else "â‚¹${course.price}",
                         fontWeight = FontWeight.Bold,
                         color = if (course.price == 0) EmeraldSecondary else HeadingText,
                         fontSize = 20.sp
@@ -597,7 +592,7 @@ fun CourseDetailScreen(
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.height(50.dp)
                     ) {
-                        Text("Resume Learning", fontWeight = FontWeight.Bold)
+                        Text("Resume Learning", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 } else {
                     Button(
@@ -700,7 +695,7 @@ fun CourseDetailScreen(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(text = "(${course.reviewCount} Reviews)", color = BodyText, fontSize = 12.sp)
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text(text = "•   ${course.enrolledCount} Enrolled Students", color = BodyText, fontSize = 12.sp)
+                    Text(text = "â€¢   ${course.enrolledCount} Enrolled Students", color = BodyText, fontSize = 12.sp)
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -726,7 +721,7 @@ fun CourseDetailScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = course.instructorName, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Text(text = "Co-Founder @EduCore", fontSize = 11.sp, color = BodyText)
+                        Text(text = "Co-Founder @Learnora", fontSize = 11.sp, color = BodyText)
                     }
                     OutlinedButton(
                         onClick = { context.showToast("Following ${course.instructorName}!") },
@@ -780,7 +775,7 @@ fun CourseDetailScreen(
 
                             Text(text = "Course Details", fontWeight = FontWeight.Bold, color = HeadingText)
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = "•   Full access with Pro subscription\n•   Verified certified course modules\n•   1-on-1 scheduled support hours included", fontSize = 12.sp, lineHeight = 22.sp, color = BodyText)
+                            Text(text = "â€¢   Full access with Pro subscription\nâ€¢   Verified certified course modules\nâ€¢   1-on-1 scheduled support hours included", fontSize = 12.sp, lineHeight = 22.sp, color = BodyText)
                         }
                     }
                     "Curriculum" -> {
@@ -813,7 +808,7 @@ fun CourseDetailScreen(
                                             Spacer(modifier = Modifier.width(12.dp))
                                             Column {
                                                 Text(text = lesson.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
-                                                Text(text = "${lesson.type} •   ${lesson.duration} mins", fontSize = 11.sp, color = BodyText)
+                                                Text(text = "${lesson.type} â€¢   ${lesson.duration} mins", fontSize = 11.sp, color = BodyText)
                                             }
                                         }
 
@@ -946,7 +941,7 @@ fun CourseDetailScreen(
     }
 }
 
-// ━━━━━━━ SCREEN 3: COURSE PLAYER ━━━━━━━
+// â”â”â”â”â”â”â” SCREEN 3: COURSE PLAYER â”â”â”â”â”â”â”
 @Composable
 fun CoursePlayerScreen(
     courseId: Int,
@@ -1237,7 +1232,7 @@ fun CoursePlayerScreen(
     }
 }
 
-// ━━━━━━━ TAB 2: SEARCH & DISCOVER ━━━━━━━
+// â”â”â”â”â”â”â” TAB 2: SEARCH & DISCOVER â”â”â”â”â”â”â”
 @Composable
 fun LearnerSearchScreen(
     viewModel: MainViewModel,
@@ -1371,7 +1366,7 @@ fun LearnerSearchScreen(
                                     Text(text = " ${course.rating}", fontSize = 11.sp, color = HeadingText)
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
-                                        text = if (course.price == 0) "Free" else "₹${course.price}",
+                                        text = if (course.price == 0) "Free" else "â‚¹${course.price}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (course.price == 0) EmeraldSecondary else HeadingText
@@ -1386,7 +1381,7 @@ fun LearnerSearchScreen(
     }
 }
 
-// ━━━━━━━ TAB 3: MY COURSES ━━━━━━━
+// â”â”â”â”â”â”â” TAB 3: MY COURSES â”â”â”â”â”â”â”
 @Composable
 fun LearnerMyCoursesScreen(
     viewModel: MainViewModel,
@@ -1562,7 +1557,7 @@ fun LearnerMyCoursesScreen(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(text = course.title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        Text(text = if (course.price == 0) "Free" else "₹${course.price}", color = EmeraldSecondary, fontSize = 11.sp)
+                                        Text(text = if (course.price == 0) "Free" else "â‚¹${course.price}", color = EmeraldSecondary, fontSize = 11.sp)
                                     }
                                     Button(
                                         onClick = { onNavigateToCourseDetail(course.id) },
@@ -1596,7 +1591,7 @@ fun ListEmptyRenderer(msg: String) {
     }
 }
 
-// ━━━━━━━ TAB 4: PATH & GAMIFICATION ━━━━━━━
+// â”â”â”â”â”â”â” TAB 4: PATH & GAMIFICATION â”â”â”â”â”â”â”
 @Composable
 fun LearnerPathGamificationScreen(
     viewModel: MainViewModel,
@@ -1828,7 +1823,7 @@ fun TimelineNode(stage: String, details: String, isUnlocked: Boolean) {
     }
 }
 
-// ━━━━━━━ TAB 5: PROFILE ━━━━━━━
+// â”â”â”â”â”â”â” TAB 5: PROFILE â”â”â”â”â”â”â”
 @Composable
 fun LearnerProfileScreen(
     viewModel: MainViewModel,
@@ -1910,7 +1905,7 @@ fun LearnerProfileScreen(
                     Icon(Icons.Default.Stars, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(32.dp))
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Upgrade to EduCore Pro", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Upgrade to Learnora Pro", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text("Unlock unlimited enrollments, certified credits, & mentor support", fontSize = 10.sp, color = BodyText)
                     }
                     Icon(Icons.Default.ChevronRight, contentDescription = null, tint = BodyText)
@@ -1974,7 +1969,7 @@ fun SettingsItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageV
     }
 }
 
-// ━━━━━━━ SCREEN 8: PREMIUM UPGRADE ━━━━━━━
+// â”â”â”â”â”â”â” SCREEN 8: PREMIUM UPGRADE â”â”â”â”â”â”â”
 @Composable
 fun PremiumUpgradeScreen(
     viewModel: MainViewModel,
@@ -2019,7 +2014,7 @@ fun PremiumUpgradeScreen(
                 Icon(Icons.Default.Star, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(64.dp))
                 
                 Text(
-                    text = "Unlock EduCore Pro",
+                    text = "Unlock Learnora Pro",
                     style = MaterialTheme.typography.displayMedium,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold
@@ -2064,7 +2059,7 @@ fun PremiumUpgradeScreen(
                             .clickable { isYearlyPlan = false }
                             .padding(horizontal = 16.dp, vertical = 6.dp)
                     ) {
-                        Text("Monthly (₹499)", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Monthly (â‚¹499)", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
 
                     Box(
@@ -2074,14 +2069,14 @@ fun PremiumUpgradeScreen(
                             .clickable { isYearlyPlan = true }
                             .padding(horizontal = 16.dp, vertical = 6.dp)
                     ) {
-                        Text("Yearly (₹3,999 - Save 33%)", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Yearly (â‚¹3,999 - Save 33%)", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
                 // Pricing total display
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "Total Price: ₹$activePrice",
+                        text = "Total Price: â‚¹$activePrice",
                         fontWeight = FontWeight.Bold,
                         fontSize = 24.sp,
                         color = HeadingText
@@ -2127,10 +2122,10 @@ fun PremiumUpgradeScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Text("EduCore Billing Integration", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HeadingText)
+                            Text("Learnora Billing Integration", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HeadingText)
                             Text("Secure Payment Gateway Powered by Razorpay", fontSize = 11.sp, color = BodyText)
                             
-                            Divider(color = CardBorderColor)
+                            HorizontalDivider(color = CardBorderColor)
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -2145,7 +2140,7 @@ fun PremiumUpgradeScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("Total Collected", color = BodyText, fontSize = 13.sp)
-                                Text("₹$activePrice", color = EmeraldSecondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("â‚¹$activePrice", color = EmeraldSecondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             }
 
                             Button(
@@ -2159,7 +2154,7 @@ fun PremiumUpgradeScreen(
                                     .height(48.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldSecondary)
                             ) {
-                                Text("Confirm Payment of ₹$activePrice", fontWeight = FontWeight.Bold)
+                                Text("Confirm Payment of â‚¹$activePrice", fontWeight = FontWeight.Bold)
                             }
 
                             Text("By confirming, you agree to our standard recursive billing terms. Cancellable anytime.", fontSize = 10.sp, color = MutedText, textAlign = TextAlign.Center)

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.ui.instructor
 
 import com.example.util.showToast
@@ -5,6 +7,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -15,11 +18,79 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.*
 import com.example.data.*
 import com.example.ui.MainViewModel
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
+
+// ─── Shared Input Components ─────────────────────────────────
+
+@Composable
+private fun EduTextField(
+    placeholder: String,
+    value: String,
+    maxLines: Int = 1,
+    isNumber: Boolean = false,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(placeholder, fontSize = 12.sp) },
+        modifier = Modifier.fillMaxWidth(),
+        maxLines = maxLines,
+        keyboardOptions = if (isNumber) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = IndigoPrimary,
+            unfocusedBorderColor = CardBorderColor,
+            focusedTextColor = HeadingText,
+            unfocusedTextColor = HeadingText,
+            focusedLabelColor = IndigoPrimary,
+            unfocusedLabelColor = BodyText
+        ),
+        shape = RoundedCornerShape(10.dp)
+    )
+}
+
+@Composable
+private fun EduDropdown(
+    label: String,
+    selected: String,
+    options: List<String>,
+    onSelect: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+        OutlinedTextField(
+            value = selected,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label, fontSize = 12.sp) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = IndigoPrimary,
+                unfocusedBorderColor = CardBorderColor,
+                focusedTextColor = HeadingText,
+                unfocusedTextColor = HeadingText
+            ),
+            shape = RoundedCornerShape(10.dp)
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false },
+            modifier = Modifier.background(DarkCardBg)) {
+            options.forEach { opt ->
+                DropdownMenuItem(
+                    text = { Text(opt, color = HeadingText, fontSize = 13.sp) },
+                    onClick = { onSelect(opt); expanded = false }
+                )
+            }
+        }
+    }
+}
+
+// ─── Course Builder Screen ────────────────────────────────────
 
 @Composable
 fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEntity?, onDismiss: () -> Unit) {
@@ -29,17 +100,17 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
 
     // Step 1: Basics
     var title by remember { mutableStateOf(editCourse?.title ?: "") }
-    var subtitle by remember { mutableStateOf(editCourse?.subtitle ?: "") }
-    var category by remember { mutableStateOf(editCourse?.category ?: "Python") }
+    var subtitle by remember { mutableStateOf(editCourse?.description ?: "") }
+    var category by remember { mutableStateOf(editCourse?.category ?: "Coding") }
     var difficulty by remember { mutableStateOf(editCourse?.difficulty ?: "Beginner") }
     var language by remember { mutableStateOf(editCourse?.language ?: "English") }
     var tags by remember { mutableStateOf(editCourse?.tags ?: "") }
 
     // Step 2: Thumbnail & Intro
-    var thumbnailUrl by remember { mutableStateOf(editCourse?.thumbnailUrl ?: "") }
+    var thumbnailUrl by remember { mutableStateOf(editCourse?.thumbnail ?: "") }
     var introVideoUrl by remember { mutableStateOf(editCourse?.introVideoUrl ?: "") }
 
-    // Step 3: Curriculum (simplified for UI logic)
+    // Step 3: Curriculum
     val lessons = remember { mutableStateListOf<LessonEntity>() }
     var draftLessonTitle by remember { mutableStateOf("") }
     var draftLessonType by remember { mutableStateOf("Video") }
@@ -50,20 +121,20 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
     }
 
     // Step 4: Pricing
-    var isFree by remember { mutableStateOf(editCourse?.price == 0) }
-    var priceStr by remember { mutableStateOf(if(editCourse?.price == 0) "" else editCourse?.price.toString()) }
-    var discountActive by remember { mutableStateOf(editCourse?.discountedPrice != null) }
-    var discountPriceStr by remember { mutableStateOf(editCourse?.discountedPrice?.toString() ?: "") }
+    var isFree by remember { mutableStateOf((editCourse?.price ?: 0) == 0) }
+    var priceStr by remember { mutableStateOf(if ((editCourse?.price ?: 0) == 0) "" else editCourse?.price.toString()) }
+    var discountActive by remember { mutableStateOf((editCourse?.discountPrice ?: 0) > 0) }
+    var discountPriceStr by remember { mutableStateOf(if ((editCourse?.discountPrice ?: 0) > 0) editCourse?.discountPrice.toString() else "") }
 
-    // Step 5: Settings
-    var welcomeMsg by remember { mutableStateOf(editCourse?.welcomeMessage ?: "") }
-    var congratsMsg by remember { mutableStateOf(editCourse?.congratulationsMessage ?: "") }
-    var certEnabled by remember { mutableStateOf(editCourse?.certificateEnabled ?: true) }
+    // Step 5: Settings (local-only metadata, not stored in entity)
+    var welcomeMsg by remember { mutableStateOf("") }
+    var congratsMsg by remember { mutableStateOf("") }
+    var certEnabled by remember { mutableStateOf(true) }
 
-    // Autosave Simulation
+    // Autosave simulation
     LaunchedEffect(title, subtitle, category, difficulty, priceStr) {
         if (title.isNotEmpty()) {
-            delay(30000) // 30 sec autosave
+            delay(30000)
             isSaving = true; delay(1000); isSaving = false
             context.showToast("Draft saved")
         }
@@ -87,9 +158,8 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // Progress Bar
-            LinearProgressIndicator(progress = step / 6f, color = IndigoPrimary, trackColor = DarkCardBg, modifier = Modifier.fillMaxWidth().height(2.dp))
-            
+            LinearProgressIndicator(progress = { step / 6f }, color = IndigoPrimary, trackColor = DarkCardBg, modifier = Modifier.fillMaxWidth().height(2.dp))
+
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 when (step) {
                     1 -> {
@@ -99,9 +169,9 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
                             Text(if (title.length < 10) "Too short" else if (title.length < 40) "Good" else "Perfect", color = if (title.length < 10) AmberWarning else EmeraldSecondary, fontSize = 10.sp)
                             Text("${title.length}/100", color = BodyText, fontSize = 10.sp)
                         }
-                        EduTextField("Subtitle (max 200 chars)", subtitle, maxLines = 3) { if (it.length <= 200) subtitle = it }
-                        EduDropdown("Category", category, listOf("Python", "Web Development", "Data Science", "Design", "Business", "Marketing")) { category = it }
-                        Text("Difficulty Level", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        EduTextField("Description (max 200 chars)", subtitle, maxLines = 3) { if (it.length <= 200) subtitle = it }
+                        EduDropdown("Category", category, listOf("Coding", "Python", "Web Development", "Data Science", "Design", "Business", "Marketing", "DevOps")) { category = it }
+                        Text("Difficulty Level", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = HeadingText)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf("Beginner", "Intermediate", "Advanced", "Expert").forEach { d ->
                                 Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if(difficulty==d) IndigoPrimary else DarkCardBg).border(1.dp, CardBorderColor, RoundedCornerShape(8.dp)).clickable { difficulty = d }.padding(horizontal=12.dp, vertical=8.dp)) { Text(d, color=Color.White, fontSize=12.sp) }
@@ -112,24 +182,24 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
                     }
                     2 -> {
                         Text("Course Media", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = HeadingText)
-                        Text("Course Thumbnail (16:9)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Course Thumbnail ID / URL (16:9)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = HeadingText)
                         if (thumbnailUrl.isEmpty()) {
                             Box(Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(12.dp)).background(DarkCardBg).border(1.dp, CardBorderColor, RoundedCornerShape(12.dp)).clickable { thumbnailUrl = "https://images.unsplash.com/photo-1498050108023-c5249f4df085" }, contentAlignment = Alignment.Center) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.Image, null, tint = MutedText, modifier = Modifier.size(32.dp)); Spacer(Modifier.height(8.dp)); Text("Tap to Search Unsplash", color = BodyText, fontSize = 12.sp) }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.Image, null, tint = MutedText, modifier = Modifier.size(32.dp)); Spacer(Modifier.height(8.dp)); Text("Tap to use sample image", color = BodyText, fontSize = 12.sp) }
                             }
                         } else {
                             Box(Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(12.dp)).background(EmeraldSecondary.copy(0.1f)), contentAlignment = Alignment.Center) { Text(thumbnailUrl, fontSize = 10.sp, color = EmeraldSecondary, modifier = Modifier.padding(16.dp)) }
                             TextButton(onClick = { thumbnailUrl = "" }) { Text("Remove Image", color = RedDanger) }
                         }
                         Spacer(Modifier.height(16.dp))
-                        Text("Promo Video URL (YouTube/Vimeo)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Promo Video URL (YouTube/Vimeo)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = HeadingText)
                         EduTextField("e.g. https://youtu.be/...", introVideoUrl) { introVideoUrl = it }
                     }
                     3 -> {
                         Text("Build Curriculum", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = HeadingText)
                         Card(Modifier.fillMaxWidth().border(1.dp, CardBorderColor, RoundedCornerShape(12.dp)), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = DarkCardBg)) {
                             Column(Modifier.padding(14.dp)) {
-                                Text("Add Lesson", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("Add Lesson", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = HeadingText)
                                 EduTextField("Lesson Title", draftLessonTitle) { draftLessonTitle = it }
                                 Spacer(Modifier.height(8.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -140,7 +210,7 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
                             }
                         }
                         Spacer(Modifier.height(16.dp))
-                        Text("Lessons (${lessons.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Lessons (${lessons.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HeadingText)
                         lessons.forEachIndexed { i, l ->
                             Row(Modifier.fillMaxWidth().padding(vertical=4.dp).clip(RoundedCornerShape(8.dp)).background(DarkCardBg).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(if(l.type=="Video") Icons.Default.PlayCircle else if(l.type=="Quiz") Icons.Default.Quiz else Icons.Default.Article, null, tint = IndigoPrimary, modifier = Modifier.size(16.dp))
@@ -153,7 +223,7 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
                     4 -> {
                         Text("Pricing", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = HeadingText)
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DarkCardBg).padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Make this course Free", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("Make this course Free", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = HeadingText)
                             Switch(checked = isFree, onCheckedChange = { isFree = it }, colors = SwitchDefaults.colors(checkedThumbColor = EmeraldSecondary))
                         }
                         if (!isFree) {
@@ -162,7 +232,7 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
                             Text("Suggested: ₹799 - ₹2,999", fontSize = 11.sp, color = MutedText)
                             Spacer(Modifier.height(16.dp))
                             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DarkCardBg).padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("Enable Discount", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("Enable Discount", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = HeadingText)
                                 Switch(checked = discountActive, onCheckedChange = { discountActive = it }, colors = SwitchDefaults.colors(checkedThumbColor = IndigoPrimary))
                             }
                             if (discountActive) {
@@ -179,7 +249,7 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
                                         Spacer(Modifier.height(8.dp))
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Gross Revenue:", fontSize=12.sp, color=BodyText); Text("₹${finalPrice * 100}", fontWeight=FontWeight.Bold, color=HeadingText) }
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Platform Fee (30%):", fontSize=12.sp, color=BodyText); Text("₹${(finalPrice * 100 * 0.3).toInt()}", fontWeight=FontWeight.Bold, color=RedDanger) }
-                                        Divider(Modifier.padding(vertical = 8.dp), color = CardBorderColor)
+                                        HorizontalDivider(Modifier.padding(vertical = 8.dp), color = CardBorderColor)
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Your Share (70%):", fontSize=12.sp, color=HeadingText); Text("₹${(finalPrice * 100 * 0.7).toInt()}", fontWeight=FontWeight.Bold, color=EmeraldSecondary, fontSize = 16.sp) }
                                     }
                                 }
@@ -193,7 +263,7 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
                         EduTextField("Congratulations Message (upon completion)", congratsMsg, maxLines = 3) { congratsMsg = it }
                         Spacer(Modifier.height(16.dp))
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(DarkCardBg).padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Enable Completion Certificate", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("Enable Completion Certificate", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = HeadingText)
                             Switch(checked = certEnabled, onCheckedChange = { certEnabled = it }, colors = SwitchDefaults.colors(checkedThumbColor = EmeraldSecondary))
                         }
                     }
@@ -201,14 +271,14 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
                         Text("Review & Submit", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = HeadingText)
                         Card(Modifier.fillMaxWidth().border(1.dp, CardBorderColor, RoundedCornerShape(12.dp)), colors = CardDefaults.cardColors(containerColor = DarkCardBg)) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = HeadingText)
                                 Text("$category • $difficulty • $language", fontSize = 12.sp, color = BodyText)
                                 Text("Price: ${if(isFree) "Free" else "₹$priceStr"}", fontSize = 14.sp, color = EmeraldSecondary, fontWeight = FontWeight.Bold)
                                 Text("${lessons.size} Lessons included", fontSize = 12.sp, color = BodyText)
                             }
                         }
                         Spacer(Modifier.height(16.dp))
-                        Text("Publishing Checklist", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Publishing Checklist", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = HeadingText)
                         Spacer(Modifier.height(8.dp))
                         ChecklistIndicator("Title & category added", title.isNotEmpty() && category.isNotEmpty())
                         ChecklistIndicator("Thumbnail provided", thumbnailUrl.isNotEmpty())
@@ -217,7 +287,7 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
                     }
                 }
             }
-            
+
             // Bottom Bar
             Row(Modifier.fillMaxWidth().background(DarkCardBg).padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 if (step > 1) {
@@ -231,8 +301,7 @@ fun InstructorCourseBuilderScreen(viewModel: MainViewModel, editCourse: CourseEn
                         step++
                     } else {
                         val p = if (isFree) 0 else priceStr.toIntOrNull() ?: 0
-                        val dp = if (!isFree && discountActive) discountPriceStr.toIntOrNull() else null
-                        viewModel.publishCourseByInstructor(title, subtitle, category, difficulty, p) // Simplified for prototype
+                        viewModel.publishCourseByInstructor(title, subtitle, category, difficulty, p, lessons.toList())
                         context.showToast("Course submitted for review!")
                         onDismiss()
                     }

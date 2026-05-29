@@ -112,6 +112,62 @@ fun AdminInstructorDetailPage(instructor: UserEntity, viewModel: MainViewModel, 
             }
             Spacer(Modifier.height(20.dp))
 
+            // Onboarding Credentials Card
+            if (instructor.hasSubmittedOnboarding || instructor.cvUrl.isNotEmpty()) {
+                Text(text = "Onboarding Credentials", fontWeight = FontWeight.Bold, color = HeadingText)
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth().border(1.dp, CardBorderColor, RoundedCornerShape(12.dp)),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = DarkCardBg)
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Contact Phone:", fontSize = 11.sp, color = MutedText)
+                            Text(instructor.phone.ifEmpty { "Not provided" }, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = HeadingText)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Teaching Specialty:", fontSize = 11.sp, color = MutedText)
+                            Text(instructor.expertiseTags.ifEmpty { "Not provided" }, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = HeadingText)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Experience Level:", fontSize = 11.sp, color = MutedText)
+                            Text(instructor.experience.ifEmpty { "Not provided" }, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = HeadingText)
+                        }
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text("Teaching History:", fontSize = 11.sp, color = MutedText)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = instructor.teachingHistory.ifEmpty { "Not provided" },
+                                fontSize = 12.sp,
+                                color = HeadingText,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(SurfaceElevated)
+                                    .padding(10.dp)
+                            )
+                        }
+                        if (instructor.cvUrl.isNotEmpty()) {
+                            Button(
+                                onClick = {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(instructor.cvUrl))
+                                    context.startActivity(intent)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Launch, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Open CV PDF Link", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+
             // Approval actions
             if (!instructor.isApproved && instructor.isActive) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

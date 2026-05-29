@@ -4,7 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
-private val EduCoreColorScheme = darkColorScheme(
+private val LearnoraColorScheme = darkColorScheme(
     primary = IndigoPrimary,
     secondary = EmeraldSecondary,
     tertiary = AmberWarning,
@@ -21,11 +21,11 @@ private val EduCoreColorScheme = darkColorScheme(
 )
 
 @Composable
-fun EduCoreTheme(
+fun LearnoraTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = EduCoreColorScheme,
+        colorScheme = LearnoraColorScheme,
         typography = Typography,
         content = content
     )

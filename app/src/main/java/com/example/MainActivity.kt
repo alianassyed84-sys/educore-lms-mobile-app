@@ -26,7 +26,7 @@ import com.example.ui.learner.CourseDetailScreen
 import com.example.ui.learner.CoursePlayerScreen
 import com.example.ui.learner.LearnerMainScreen
 import com.example.ui.learner.PremiumUpgradeScreen
-import com.example.ui.theme.EduCoreTheme
+import com.example.ui.theme.LearnoraTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -44,15 +44,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            EduCoreTheme {
-                EduCoreNavigationGraph(viewModel = viewModel)
+            LearnoraTheme {
+                LearnoraNavigationGraph(viewModel = viewModel)
             }
         }
     }
 }
 
 @Composable
-fun EduCoreNavigationGraph(viewModel: MainViewModel) {
+fun LearnoraNavigationGraph(viewModel: MainViewModel) {
     val navController = rememberNavController()
 
     NavHost(
@@ -107,15 +107,23 @@ fun EduCoreNavigationGraph(viewModel: MainViewModel) {
                     navController.navigate("email_verification")
                 },
                 onLoginSuccess = {
-                    val role = viewModel.selectedRole.value
-                    val dest = when (role) {
-                        "Admin" -> "admin_main"
-                        "Instructor" -> "instructor_main"
-                        else -> "learner_main"
-                    }
-                    navController.navigate(dest) {
-                        popUpTo("login") { inclusive = true }
-                        popUpTo("role_selection") { inclusive = true }
+                    val user = viewModel.currentUser.value
+                    if (user != null && user.role == "Instructor" && !user.isApproved) {
+                        navController.navigate("instructor_application") {
+                            popUpTo("login") { inclusive = true }
+                            popUpTo("role_selection") { inclusive = true }
+                        }
+                    } else {
+                        val role = viewModel.selectedRole.value
+                        val dest = when (role) {
+                            "Admin" -> "admin_main"
+                            "Instructor" -> "instructor_main"
+                            else -> "learner_main"
+                        }
+                        navController.navigate(dest) {
+                            popUpTo("login") { inclusive = true }
+                            popUpTo("role_selection") { inclusive = true }
+                        }
                     }
                 }
             )
@@ -141,15 +149,24 @@ fun EduCoreNavigationGraph(viewModel: MainViewModel) {
             EmailVerificationScreen(
                 viewModel = viewModel,
                 onSuccess = { role ->
-                    val dest = when (role) {
-                        "Admin" -> "admin_main"
-                        "Instructor" -> "instructor_main"
-                        else -> "learner_main"
-                    }
-                    navController.navigate(dest) {
-                        popUpTo("email_verification") { inclusive = true }
-                        popUpTo("login") { inclusive = true }
-                        popUpTo("signup") { inclusive = true }
+                    val user = viewModel.currentUser.value
+                    if (user != null && user.role == "Instructor" && !user.isApproved) {
+                        navController.navigate("instructor_application") {
+                            popUpTo("email_verification") { inclusive = true }
+                            popUpTo("login") { inclusive = true }
+                            popUpTo("signup") { inclusive = true }
+                        }
+                    } else {
+                        val dest = when (role) {
+                            "Admin" -> "admin_main"
+                            "Instructor" -> "instructor_main"
+                            else -> "learner_main"
+                        }
+                        navController.navigate(dest) {
+                            popUpTo("email_verification") { inclusive = true }
+                            popUpTo("login") { inclusive = true }
+                            popUpTo("signup") { inclusive = true }
+                        }
                     }
                 },
                 onCancel = {
@@ -164,6 +181,23 @@ fun EduCoreNavigationGraph(viewModel: MainViewModel) {
                 viewModel = viewModel,
                 onNavigateBack = {
                     navController.popBackStack()
+                }
+            )
+        }
+
+        // ━━━━━━━ INSTRUCTOR APPLICATION SCREEN ━━━━━━━
+        composable("instructor_application") {
+            InstructorApplicationScreen(
+                viewModel = viewModel,
+                onNavigateBack = {
+                    navController.navigate("role_selection") {
+                        popUpTo("instructor_application") { inclusive = true }
+                    }
+                },
+                onNavigateToDashboard = {
+                    navController.navigate("instructor_main") {
+                        popUpTo("instructor_application") { inclusive = true }
+                    }
                 }
             )
         }

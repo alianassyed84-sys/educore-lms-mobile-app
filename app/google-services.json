@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "139553133807",
+    "project_id": "service-of-a-car",
+    "storage_bucket": "service-of-a-car.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:139553133807:android:fd8cec964fc2411fd6b71a",
+        "android_client_info": {
+          "package_name": "com.aistudio.educore.saasle"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "139553133807-miljf9rmn51kr24o6mfnnm95s1u644tp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.educore.saasle",
+            "certificate_hash": "2e57c0e2123311c51d2a86b03762200e4404dc49"
+          }
+        },
+        {
+          "client_id": "139553133807-0o495j99gg21a74o00n85phm0j52a23b.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCBNtDdDmqLlo59IcdnXkvfMllUZWg0mFc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "139553133807-0o495j99gg21a74o00n85phm0j52a23b.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

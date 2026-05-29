@@ -28,7 +28,11 @@ data class UserEntity(
     val commissionRate: Int = 30, // per-instructor override
     val totalEarnings: Int = 0,
     val suspensionReason: String = "",
-    val isFeatured: Boolean = false
+    val isFeatured: Boolean = false,
+    val experience: String = "",
+    val teachingHistory: String = "",
+    val cvUrl: String = "",
+    val hasSubmittedOnboarding: Boolean = false
 )
 
 @Entity(tableName = "courses")

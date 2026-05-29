@@ -138,6 +138,62 @@ object FirebaseRepository {
         usersCol.document(uid).update("isVerified", true).await()
     }
 
+    /**
+     * Resend the Firebase verification email to the current user.
+     */
+    suspend fun resendVerificationEmail() {
+        try { auth.currentUser?.sendEmailVerification()?.await() } catch (e: Exception) { e.printStackTrace() }
+    }
+
+    /**
+     * Sign in with Google using Firebase Authentication.
+     * If the user profile does not exist in Firestore, creates one automatically.
+     */
+    suspend fun loginWithGoogle(idToken: String, selectedRole: String): Result<String> = runCatching {
+        val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+        val authResult = auth.signInWithCredential(credential).await()
+        val user = authResult.user ?: error("Google Sign-In returned null user.")
+        val uid = user.uid
+        val email = user.email ?: ""
+        val name = user.displayName ?: "Google User"
+        val photoUrl = user.photoUrl?.toString() ?: ""
+
+        // Check if the user document exists in Firestore
+        val profileDoc = usersCol.document(uid).get().await()
+        if (!profileDoc.exists()) {
+            if (selectedRole == "Admin") {
+                error("Admin accounts cannot be created publicly.")
+            }
+            // New user registration via Google Sign-In
+            val profile = mapOf(
+                "uid"            to uid,
+                "email"          to email,
+                "name"           to name,
+                "role"           to selectedRole,
+                "isVerified"     to true,          // Google email is already verified!
+                "isApproved"     to (selectedRole == "Learner"),
+                "isActive"       to true,
+                "isBanned"       to false,
+                "subscription"   to "Free",
+                "proExpiryAt"    to 0L,
+                "streakDays"     to "0/7",
+                "streakCount"    to 0,
+                "xp"             to 0,
+                "badges"         to "",
+                "phone"          to "",
+                "bio"            to "",
+                "photoUrl"       to photoUrl,
+                "expertiseTags"  to "",
+                "commissionRate" to 30,
+                "totalEarnings"  to 0,
+                "isFeatured"     to false,
+                "createdAt"      to System.currentTimeMillis()
+            )
+            usersCol.document(uid).set(profile).await()
+        }
+        uid
+    }
+
     // ════════════════════════════════════════════════════════════════════
     //  USER PROFILE SECTION
     // ════════════════════════════════════════════════════════════════════
@@ -320,11 +376,25 @@ object FirebaseRepository {
     fun getNotificationsForUserFlow(uid: String): Flow<List<Map<String, Any?>>> = callbackFlow {
         val listener = notificationsCol
             .whereEqualTo("userId", uid)
-            .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
             .addSnapshotListener { snap, err ->
-                if (err != null) { close(err); return@addSnapshotListener }
+                if (err != null) {
+                    // Gracefully fallback on query errors instead of crashing the Flow context
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
                 val list = snap?.documents?.mapNotNull { it.data?.plus("firestoreId" to it.id) } ?: emptyList()
-                trySend(list)
+                
+                // Sort in-memory locally by "createdAt" to completely bypass composite index requirements!
+                val sortedList = list.sortedByDescending { doc ->
+                    when (val cat = doc["createdAt"]) {
+                        is com.google.firebase.Timestamp -> cat.toDate().time
+                        is java.util.Date -> cat.time
+                        is Long -> cat
+                        is String -> try { cat.toLong() } catch(e: Exception) { 0L }
+                        else -> 0L
+                    }
+                }
+                trySend(sortedList)
             }
         awaitClose { listener.remove() }
     }
@@ -515,5 +585,134 @@ object FirebaseRepository {
                 trySend(list)
             }
         awaitClose { listener.remove() }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  REVIEWS SECTION
+    // ════════════════════════════════════════════════════════════════════
+
+    /** Add a review to the reviews collection. */
+    suspend fun db_addReview(courseId: String, userEmail: String, userName: String, rating: Int, comment: String) {
+        db.collection("reviews").add(mapOf(
+            "courseId"  to courseId,
+            "userEmail" to userEmail,
+            "userName"  to userName,
+            "rating"    to rating.toLong(),
+            "comment"   to comment,
+            "status"    to "Approved",
+            "createdAt" to System.currentTimeMillis()
+        )).await()
+    }
+
+    /** Update a review document by its Firestore ID. */
+    suspend fun updateReview(firestoreId: String, fields: Map<String, Any?>) {
+        db.collection("reviews").document(firestoreId).set(fields, SetOptions.merge()).await()
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  PAYOUTS — ADDITIONAL HELPERS
+    // ════════════════════════════════════════════════════════════════════
+
+    /** Get payout Firestore ID by instructor and Pending status. */
+    suspend fun getPayoutIdByInstructor(instructorId: String): String? {
+        val docs = payoutsCol
+            .whereEqualTo("instructorId", instructorId)
+            .whereEqualTo("status", "Pending")
+            .limit(1).get().await()
+        return docs.documents.firstOrNull()?.id
+    }
+
+    /** Update arbitrary fields on a payout document. */
+    suspend fun updatePayout(firestoreId: String, fields: Map<String, Any?>) {
+        payoutsCol.document(firestoreId).set(fields, SetOptions.merge()).await()
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  COURSES — ADDITIONAL HELPERS
+    // ════════════════════════════════════════════════════════════════════
+
+    /** Delete a course document from Firestore. */
+    suspend fun deleteCourse(firestoreId: String) {
+        coursesCol.document(firestoreId).delete().await()
+    }
+
+    /** Add a lesson to a course's lessons sub-collection. */
+    suspend fun addLessonToCourse(courseFirestoreId: String, lessonData: Map<String, Any?>) {
+        coursesCol.document(courseFirestoreId).collection("lessons").add(lessonData).await()
+    }
+
+    /** Delete a lesson from a course's lessons sub-collection. */
+    suspend fun deleteLessonFromCourse(courseFirestoreId: String, lessonFirestoreId: String) {
+        coursesCol.document(courseFirestoreId).collection("lessons").document(lessonFirestoreId).delete().await()
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  ENROLLMENTS — ADDITIONAL HELPERS
+    // ════════════════════════════════════════════════════════════════════
+
+    /** Remove an enrollment document. */
+    suspend fun removeEnrollment(userId: String, courseId: String) {
+        val docId = "${userId}_${courseId}"
+        enrollmentsCol.document(docId).delete().await()
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  SESSIONS — ADDITIONAL HELPERS
+    // ════════════════════════════════════════════════════════════════════
+
+    /** Update a live session document. */
+    suspend fun updateSession(firestoreId: String, fields: Map<String, Any?>) {
+        sessionsCol.document(firestoreId).set(fields, SetOptions.merge()).await()
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  SENT NOTIFICATIONS
+    // ════════════════════════════════════════════════════════════════════
+
+    /** Add a sent notification record. */
+    suspend fun addSentNotification(data: Map<String, Any?>) {
+        sentNotificationsCol.add(data).await()
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  COUPONS
+    // ════════════════════════════════════════════════════════════════════
+
+    /** Add a coupon document. */
+    suspend fun addCoupon(data: Map<String, Any?>) {
+        val code = data["code"] as? String ?: return
+        couponsCol.document(code).set(data).await()
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  BANNERS
+    // ════════════════════════════════════════════════════════════════════
+
+    /** Add a banner document. */
+    suspend fun addBanner(data: Map<String, Any?>) {
+        bannersCol.add(data).await()
+    }
+
+    /** Find banner Firestore ID by title. */
+    suspend fun getBannerIdByTitle(title: String): String? {
+        val docs = bannersCol.whereEqualTo("title", title).limit(1).get().await()
+        return docs.documents.firstOrNull()?.id
+    }
+
+    /** Update a banner document. */
+    suspend fun updateBanner(firestoreId: String, fields: Map<String, Any?>) {
+        bannersCol.document(firestoreId).set(fields, SetOptions.merge()).await()
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  PLATFORM SETTINGS
+    // ════════════════════════════════════════════════════════════════════
+
+    /** Update (or create) a platform setting document by key. */
+    suspend fun updateSetting(key: String, value: String) {
+        platformSettingsCol.document(key).set(
+            mapOf("key" to key, "value" to value, "updatedAt" to System.currentTimeMillis()),
+            SetOptions.merge()
+        ).await()
     }
 }
