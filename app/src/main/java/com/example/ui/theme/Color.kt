@@ -17,3 +17,6 @@ val MutedText = Color(0xFF52525B)
 
 val GreenGlow = Color(0x3310B981)
 val IndigoGlow = Color(0x336366F1)
+val AmberGlow = Color(0x33F59E0B)
+val RedGlow = Color(0x33EF4444)
+val SurfaceElevated = Color(0xFF1C1C27)

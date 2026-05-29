@@ -306,6 +306,40 @@ object DatabaseSeeder {
                         requestedAt = System.currentTimeMillis() - 3600000
                     )
                 )
+
+                // ── Seed Banners ──────────────────────────────────────────
+                val bannerDao = database.bannerDao()
+                bannerDao.insertBanner(BannerEntity(imageUrl = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3", title = "🎉 Learn Anything, Anytime", subtitle = "50,000+ students trust EduCore", buttonLabel = "Explore Courses", displayOrder = 0))
+                bannerDao.insertBanner(BannerEntity(imageUrl = "https://images.unsplash.com/photo-1498050108023-c5249f4df085", title = "New Year Offer — 40% Off", subtitle = "Pro Plan at just ₹299/month", buttonLabel = "Upgrade Now", displayOrder = 1))
+
+                // ── Seed Platform Settings ────────────────────────────────
+                val settingDao = database.platformSettingDao()
+                settingDao.setSetting(PlatformSettingEntity(key = "app_name", value = "EduCore"))
+                settingDao.setSetting(PlatformSettingEntity(key = "commission_rate", value = "30"))
+                settingDao.setSetting(PlatformSettingEntity(key = "min_payout", value = "1000"))
+                settingDao.setSetting(PlatformSettingEntity(key = "refund_window_days", value = "7"))
+                settingDao.setSetting(PlatformSettingEntity(key = "free_enrollment_limit", value = "5"))
+                settingDao.setSetting(PlatformSettingEntity(key = "maintenance_mode", value = "false"))
+                settingDao.setSetting(PlatformSettingEntity(key = "live_enabled", value = "true"))
+                settingDao.setSetting(PlatformSettingEntity(key = "certs_enabled", value = "true"))
+                settingDao.setSetting(PlatformSettingEntity(key = "announcement_enabled", value = "false"))
+                settingDao.setSetting(PlatformSettingEntity(key = "announcement_text", value = ""))
+
+                // ── Seed Coupons ──────────────────────────────────────────
+                val couponDao = database.couponDao()
+                couponDao.insertCoupon(CouponEntity(code = "LAUNCH50", discountPercent = 50, expiryDate = System.currentTimeMillis() + 30L * 86400000, maxUses = 500, usedCount = 213))
+                couponDao.insertCoupon(CouponEntity(code = "WELCOME20", discountPercent = 20, expiryDate = System.currentTimeMillis() + 90L * 86400000, maxUses = 1000, usedCount = 87))
+
+                // ── Seed Sent Notifications ───────────────────────────────
+                val sentDao = database.sentNotificationDao()
+                sentDao.insertSentNotification(SentNotificationEntity(title = "Welcome to EduCore!", message = "Start learning today with 1000+ courses.", target = "All Users", notificationType = "In-App", deliveryCount = 1200, openRate = 0.68f, sentAt = System.currentTimeMillis() - 7 * 86400000))
+                sentDao.insertSentNotification(SentNotificationEntity(title = "New Year Offer", message = "50% off on Pro Plan. Use code NEWYEAR50.", target = "All Free Users", notificationType = "All Three", deliveryCount = 950, openRate = 0.42f, sentAt = System.currentTimeMillis() - 2 * 86400000))
+
+                // ── Seed Extra Audit Logs ─────────────────────────────────
+                val adminLogDao2 = database.adminLogDao()
+                adminLogDao2.insertAdminLog(AdminLogEntity(adminEmail = "admin@educore.saas", action = "APPROVED_INSTRUCTOR", targetId = "instructor@educore.saas", targetType = "USER", oldValue = "Pending", newValue = "Approved", timestamp = System.currentTimeMillis() - 3 * 86400000))
+                adminLogDao2.insertAdminLog(AdminLogEntity(adminEmail = "admin@educore.saas", action = "CHANGED_COMMISSION", targetId = "instructor@educore.saas", targetType = "USER", oldValue = "30%", newValue = "35%", timestamp = System.currentTimeMillis() - 86400000))
+                adminLogDao2.insertAdminLog(AdminLogEntity(adminEmail = "admin@educore.saas", action = "SENT_NOTIFICATION", targetId = "All Users", targetType = "NOTIFICATION", newValue = "Welcome message", timestamp = System.currentTimeMillis() - 43200000))
             }
         }
     }

@@ -602,8 +602,9 @@ fun LoginScreen(
                         viewModel.login(email, password) { success, code ->
                             isLoading = false
                             if (success) {
-                                if (code == "OTP_VERIFICATION_REQUIRED") {
-                                    context.showToast("Please verify your email to complete login.", Toast.LENGTH_LONG)
+                                // Handle both legacy and new Firebase verification codes
+                                if (code == "OTP_VERIFICATION_REQUIRED" || code == "EMAIL_NOT_VERIFIED") {
+                                    context.showToast("Please verify your email first.", Toast.LENGTH_LONG)
                                     onOtpRequired()
                                 } else {
                                     context.showToast("Sign in successful!")

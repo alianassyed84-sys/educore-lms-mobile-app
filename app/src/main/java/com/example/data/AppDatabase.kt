@@ -15,9 +15,13 @@ import androidx.room.RoomDatabase
         LiveSessionEntity::class,
         PayoutEntity::class,
         NotificationEntity::class,
-        AdminLogEntity::class
+        AdminLogEntity::class,
+        CouponEntity::class,
+        BannerEntity::class,
+        SentNotificationEntity::class,
+        PlatformSettingEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +34,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun payoutDao(): PayoutDao
     abstract fun notificationDao(): NotificationDao
     abstract fun adminLogDao(): AdminLogDao
+    abstract fun couponDao(): CouponDao
+    abstract fun bannerDao(): BannerDao
+    abstract fun sentNotificationDao(): SentNotificationDao
+    abstract fun platformSettingDao(): PlatformSettingDao
 
     companion object {
         @Volatile
