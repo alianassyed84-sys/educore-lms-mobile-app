@@ -481,6 +481,30 @@ object FirebaseRepository {
     }
 
     /**
+     * Helper to find a User's UID by email
+     */
+    suspend fun getUidByEmail(email: String): String? {
+        val docs = usersCol.whereEqualTo("email", email).limit(1).get().await()
+        return docs.documents.firstOrNull()?.id
+    }
+
+    /**
+     * Helper to find a Course's firestore ID by title (since UI uses Int hashcodes temporarily)
+     */
+    suspend fun getCourseIdByTitle(title: String): String? {
+        val docs = coursesCol.whereEqualTo("title", title).limit(1).get().await()
+        return docs.documents.firstOrNull()?.id
+    }
+
+    /**
+     * Helper to find a Session's firestore ID by topic
+     */
+    suspend fun getSessionIdByTopic(topic: String): String? {
+        val docs = sessionsCol.whereEqualTo("topic", topic).limit(1).get().await()
+        return docs.documents.firstOrNull()?.id
+    }
+
+    /**
      * Observe all payouts as a real-time Flow.
      */
     fun getAllPayoutsFlow(): Flow<List<Map<String, Any?>>> = callbackFlow {

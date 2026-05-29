@@ -427,78 +427,86 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun adminLog(action: String, targetId: String, targetType: String, oldVal: String = "", newVal: String = "") {
         val admin = currentUser.value ?: return
         viewModelScope.launch {
-            adminLogDao.insertAdminLog(AdminLogEntity(adminEmail = admin.email, action = action, targetId = targetId, targetType = targetType, oldValue = oldVal, newValue = newVal))
+            FirebaseRepository.addAdminLog(admin.email, action, targetId, targetType, oldVal, newVal)
         }
     }
 
     fun adminApproveInstructor(instructorEmail: String) {
         viewModelScope.launch {
-            userDao.approveInstructor(instructorEmail, true)
+            val uid = FirebaseRepository.getUidByEmail(instructorEmail) ?: return@launch
+            FirebaseRepository.updateUserProfile(uid, mapOf("isApproved" to true))
             adminLog("APPROVED_INSTRUCTOR", instructorEmail, "USER", "Pending", "Approved")
-            notificationDao.insertNotification(NotificationEntity(userEmail = instructorEmail, message = "Your instructor account has been approved! Start creating courses.", type = "Alert"))
+            FirebaseRepository.addNotification(instructorEmail, "Your instructor account has been approved! Start creating courses.", "Alert")
         }
     }
 
     fun adminRejectInstructor(instructorEmail: String, reason: String) {
         viewModelScope.launch {
-            userDao.setUserActiveState(instructorEmail, false)
+            val uid = FirebaseRepository.getUidByEmail(instructorEmail) ?: return@launch
+            FirebaseRepository.updateUserProfile(uid, mapOf("isActive" to false))
             adminLog("REJECTED_INSTRUCTOR", instructorEmail, "USER", "Pending", "Rejected: $reason")
-            notificationDao.insertNotification(NotificationEntity(userEmail = instructorEmail, message = "Instructor request declined. Reason: $reason", type = "Alert"))
+            FirebaseRepository.addNotification(instructorEmail, "Instructor request declined. Reason: $reason", "Alert")
         }
     }
 
     fun adminModerateCourse(courseId: Int, isApproved: Boolean, rejectReason: String = "") {
         viewModelScope.launch {
-            val course = courseDao.getCourseById(courseId) ?: return@launch
+            val course = allCoursesList.value.find { it.id == courseId } ?: return@launch
+            val fbCourseId = FirebaseRepository.getCourseIdByTitle(course.title) ?: return@launch
             val status = if (isApproved) "Published" else "Rejected"
-            courseDao.updateCourseStatus(courseId, status)
-            adminLog(if (isApproved) "APPROVED_COURSE" else "REJECTED_COURSE", courseId.toString(), "COURSE", course.status, status)
-            notificationDao.insertNotification(NotificationEntity(userEmail = course.instructorId, message = "Your course '${course.title}' was $status.${if (!isApproved) " Reason: $rejectReason" else ""}", type = "Alert"))
+            FirebaseRepository.updateCourseStatus(fbCourseId, status)
+            adminLog(if (isApproved) "APPROVED_COURSE" else "REJECTED_COURSE", course.title, "COURSE", course.status, status)
+            FirebaseRepository.addNotification(course.instructorId, "Your course '${course.title}' was $status.${if (!isApproved) " Reason: $rejectReason" else ""}", "Alert")
         }
     }
 
     fun adminSuspendUser(userEmail: String, isSuspended: Boolean) {
         viewModelScope.launch {
-            userDao.setUserActiveState(userEmail, !isSuspended)
+            val uid = FirebaseRepository.getUidByEmail(userEmail) ?: return@launch
+            FirebaseRepository.updateUserProfile(uid, mapOf("isActive" to !isSuspended))
             adminLog(if (isSuspended) "SUSPENDED_USER" else "UNSUSPENDED_USER", userEmail, "USER")
         }
     }
 
     fun adminBanUser(userEmail: String) {
         viewModelScope.launch {
-            userDao.banUser(userEmail)
+            val uid = FirebaseRepository.getUidByEmail(userEmail) ?: return@launch
+            FirebaseRepository.updateUserProfile(uid, mapOf("isBanned" to true, "isActive" to false))
             adminLog("BANNED_USER_PERMANENTLY", userEmail, "USER", "Active", "Banned")
         }
     }
 
     fun adminDeleteUser(userEmail: String) {
         viewModelScope.launch {
-            val user = userDao.getUserByEmail(userEmail) ?: return@launch
-            userDao.deleteUser(user)
+            val uid = FirebaseRepository.getUidByEmail(userEmail) ?: return@launch
+            FirebaseRepository.updateUserProfile(uid, mapOf("isBanned" to true, "isActive" to false, "name" to "[Deleted User]"))
             adminLog("DELETED_USER", userEmail, "USER")
         }
     }
 
     fun adminChangeUserRole(userEmail: String, newRole: String) {
         viewModelScope.launch {
-            val user = userDao.getUserByEmail(userEmail) ?: return@launch
-            userDao.changeUserRole(userEmail, newRole)
+            val uid = FirebaseRepository.getUidByEmail(userEmail) ?: return@launch
+            val user = allUsersList.value.find { it.email == userEmail } ?: return@launch
+            FirebaseRepository.updateUserProfile(uid, mapOf("role" to newRole))
             adminLog("CHANGED_USER_ROLE", userEmail, "USER", user.role, newRole)
         }
     }
 
     fun adminGrantPro(userEmail: String, daysCount: Int) {
         viewModelScope.launch {
+            val uid = FirebaseRepository.getUidByEmail(userEmail) ?: return@launch
             val expiry = System.currentTimeMillis() + daysCount.toLong() * 86400000
-            userDao.setUserSubscription(userEmail, "Pro", expiry)
+            FirebaseRepository.updateUserProfile(uid, mapOf("subscription" to "Pro", "proExpiryAt" to expiry))
             adminLog("GRANTED_PRO_ACCESS", userEmail, "USER", "Free", "Pro for $daysCount days")
-            notificationDao.insertNotification(NotificationEntity(userEmail = userEmail, message = "Admin granted you Pro access for $daysCount days!", type = "Alert"))
+            FirebaseRepository.addNotification(userEmail, "Admin granted you Pro access for $daysCount days!", "Alert")
         }
     }
 
     fun adminRevokePro(userEmail: String) {
         viewModelScope.launch {
-            userDao.setUserSubscription(userEmail, "Free", 0L)
+            val uid = FirebaseRepository.getUidByEmail(userEmail) ?: return@launch
+            FirebaseRepository.updateUserProfile(uid, mapOf("subscription" to "Free", "proExpiryAt" to 0L))
             adminLog("REVOKED_PRO_ACCESS", userEmail, "USER", "Pro", "Free")
         }
     }
@@ -537,7 +545,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun adminSetCommissionRate(instructorEmail: String, newRate: Int) {
         viewModelScope.launch {
-            userDao.setInstructorCommission(instructorEmail, newRate)
+            val uid = FirebaseRepository.getUidByEmail(instructorEmail) ?: return@launch
+            FirebaseRepository.updateUserProfile(uid, mapOf("commissionRate" to newRate))
             adminLog("CHANGED_COMMISSION", instructorEmail, "USER", "30%", "$newRate%")
         }
     }
@@ -642,7 +651,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun adminFeatureInstructor(email: String, featured: Boolean) {
         viewModelScope.launch {
-            userDao.setInstructorFeatured(email, featured)
+            val uid = FirebaseRepository.getUidByEmail(email) ?: return@launch
+            FirebaseRepository.updateUserProfile(uid, mapOf("isFeatured" to featured))
             adminLog(if (featured) "FEATURED_INSTRUCTOR" else "UNFEATURED_INSTRUCTOR", email, "USER")
         }
     }
